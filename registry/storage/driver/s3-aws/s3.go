@@ -291,7 +291,7 @@ func FromParameters(parameters map[string]interface{}) (*Driver, error) {
 		return nil, err
 	}
 
-	multipartCopyThresholdSize, err := getParameterAsInt64(parameters, "multipartcopythresholdsize", defaultMultipartCopyThresholdSize, 0, maxChunkSize)
+	multipartCopyThresholdSize, err := getParameterAsInt64(parameters, "multipartcopythresholdsize", defaultMultipartCopyThresholdSize, 0, math.MaxInt64)
 	if err != nil {
 		return nil, err
 	}
@@ -1265,7 +1265,19 @@ func (w *writer) Close() error {
 		return fmt.Errorf("already closed")
 	}
 	w.closed = true
-	return w.flushPart()
+	err := w.flushPart()
+	if err != nil {
+		return err
+	}
+
+	if len(w.readyPart) != 0 {
+		err := w.flushPart()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (w *writer) Cancel() error {
@@ -1291,10 +1303,19 @@ func (w *writer) Commit() error {
 	} else if w.cancelled {
 		return fmt.Errorf("already cancelled")
 	}
+
 	err := w.flushPart()
 	if err != nil {
 		return err
 	}
+
+	if len(w.readyPart) != 0 {
+		err := w.flushPart()
+		if err != nil {
+			return err
+		}
+	}
+
 	w.committed = true
 
 	var completedUploadedParts completedParts
@@ -1332,12 +1353,6 @@ func (w *writer) flushPart() error {
 	if len(w.readyPart) == 0 && len(w.pendingPart) == 0 {
 		// nothing to write
 		return nil
-	}
-	if len(w.pendingPart) < int(w.driver.ChunkSize) {
-		// closing with a small pending part
-		// combine ready and pending to avoid writing a small part
-		w.readyPart = append(w.readyPart, w.pendingPart...)
-		w.pendingPart = nil
 	}
 
 	partNumber := aws.Int64(int64(len(w.parts) + 1))
