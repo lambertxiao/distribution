@@ -67,7 +67,7 @@ const (
 	// defaultMultipartCopyThresholdSize defines the default object size
 	// above which multipart copy will be used. (PUT Object - Copy is used
 	// for objects at or below this size.)  Empirically, 32 MB is optimal.
-	defaultMultipartCopyThresholdSize = 32 << 20
+	defaultMultipartCopyThresholdSize = 1024 << 20
 )
 
 // listMax is the largest amount of objects you can request from S3 in a list call
