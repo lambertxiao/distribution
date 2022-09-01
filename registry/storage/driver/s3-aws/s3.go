@@ -93,7 +93,7 @@ var validRegions = map[string]struct{}{}
 // validObjectACLs contains known s3 object Acls
 var validObjectACLs = map[string]struct{}{}
 
-//DriverParameters A struct that encapsulates all of the driver parameters after all values have been set
+// DriverParameters A struct that encapsulates all of the driver parameters after all values have been set
 type DriverParameters struct {
 	AccessKey                   string
 	SecretKey                   string
@@ -145,7 +145,9 @@ func init() {
 	factory.Register(driverName, &s3DriverFactory{})
 }
 
+// =====================================================================
 // s3DriverFactory implements the factory.StorageDriverFactory interface
+// =====================================================================
 type s3DriverFactory struct{}
 
 func (factory *s3DriverFactory) Create(parameters map[string]interface{}) (storagedriver.StorageDriver, error) {
@@ -611,9 +613,11 @@ func (d *driver) GetContent(ctx context.Context, path string) ([]byte, error) {
 
 // PutContent stores the []byte content at a location designated by "path".
 func (d *driver) PutContent(ctx context.Context, path string, contents []byte) error {
+	// 猜测：image 的文件名
+	// 如：若要 put 的 image 为 106.75.215.32:8080/library/hello-world，则 path 为 /library/hello-world
 	_, err := d.S3.PutObject(&s3.PutObjectInput{
 		Bucket:               aws.String(d.Bucket),
-		Key:                  aws.String(d.s3Path(path)),
+		Key:                  aws.String(d.s3Path(path)), // 调用 s3Path 后为 d.RootDirectory+path。如：~/my_images/library/hello-world
 		ContentType:          d.getContentType(),
 		ACL:                  d.getACL(),
 		ServerSideEncryption: d.getEncryptionMode(),
@@ -1167,15 +1171,24 @@ func (d *driver) doWalk(parentCtx context.Context, objectCount *int64, path, pre
 // the previous and current paths in sorted order.
 //
 // Eg 1 directoryDiff("/path/to/folder", "/path/to/folder/folder/file")
-//   => [ "/path/to/folder/folder" ],
+//
+//	=> [ "/path/to/folder/folder" ],
+//
 // Eg 2 directoryDiff("/path/to/folder/folder1", "/path/to/folder/folder2/file")
-//   => [ "/path/to/folder/folder2" ]
+//
+//	=> [ "/path/to/folder/folder2" ]
+//
 // Eg 3 directoryDiff("/path/to/folder/folder1/file", "/path/to/folder/folder2/file")
-//  => [ "/path/to/folder/folder2" ]
+//
+//	=> [ "/path/to/folder/folder2" ]
+//
 // Eg 4 directoryDiff("/path/to/folder/folder1/file", "/path/to/folder/folder2/folder1/file")
-//   => [ "/path/to/folder/folder2", "/path/to/folder/folder2/folder1" ]
+//
+//	=> [ "/path/to/folder/folder2", "/path/to/folder/folder2/folder1" ]
+//
 // Eg 5 directoryDiff("/", "/path/to/folder/folder/file")
-//   => [ "/path", "/path/to", "/path/to/folder", "/path/to/folder/folder" ],
+//
+//	=> [ "/path", "/path/to", "/path/to/folder", "/path/to/folder/folder" ],
 func directoryDiff(prev, current string) []string {
 	var paths []string
 
@@ -1202,6 +1215,7 @@ func reverse(s []string) {
 }
 
 func (d *driver) s3Path(path string) string {
+	// 将 d.RootDirectory 与 path 拼起来返回
 	return strings.TrimLeft(strings.TrimRight(d.RootDirectory, "/")+path, "/")
 }
 
