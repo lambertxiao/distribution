@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"fmt"
 	"io"
-	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +16,19 @@ import (
 	"github.com/distribution/distribution/v3/registry/storage/driver/base"
 	"github.com/distribution/distribution/v3/registry/storage/driver/factory"
 )
+
+// TODO(zengyan) NOW
+// - reader
+//   - 几个东西的转换
+// - Move & Delete
+//   - 具体要删除/移动哪些文件
+// - Stat & List
+// 	 - 具体要显示哪些文件
+//   - path 到底是什么
+//	 - 有一些特殊情况需要考虑
+// - writer
+// - config
+// 	 - 哪些是可选的
 
 const driverName = "us3"
 
@@ -108,6 +121,10 @@ func (d *driver) Name() string {
 	return driverName
 }
 
+// 下载 path 所对应的 image
+// 注：具体的 bucket 信息存放在 d 中
+// 注：path 为 image 的名字
+// 如：/hello-world，那么该文件的 key 就应该为 /my_images/hello-world
 func (d *driver) GetContent(ctx context.Context, path string) ([]byte, error) {
 	// 默认采取流式下载
 	// TODO(zengyan) 以下的方法是否可优化？拷贝次数太多？
@@ -119,55 +136,64 @@ func (d *driver) GetContent(ctx context.Context, path string) ([]byte, error) {
 	}
 	writer.Flush()
 	return buf.Bytes(), err
-
 	// TODO(zengyan) get 为什么没有 NoSuchKey 的逻辑？？？
 }
 
+// 上传 path 所对应的 image
+// 注：具体的 bucket 信息存放在 d 中
+// 注：path 为 image 的名字
+// 如：/hello-world，那么该文件的 key 就应该为 /my_images/hello-world
 func (d *driver) PutContent(ctx context.Context, path string, contents []byte) error {
-	// 猜测：image 的文件名
-	// 如：若要 put 的 image 为 106.75.215.32:8080/library/hello-world，则 path 为 /library/hello-world
-	// 调用 us3Path 后为 d.RootDirectory+path。如：~/my_images/library/hello-world
 
-	// TODO(zengyan) 这里需要把 RootDirectory 与 path 拼接起来吗
 	if len(contents) >= 4*1024*1024 { // contents >= 4M 采用分片流式上传
 		return d.Req.IOMutipartAsyncUpload(bytes.NewReader(contents), d.us3Path(path), d.getContentType())
 	} else { // contents < 4M 采用普通流式上传
 		return d.Req.IOPut(bytes.NewReader(contents), d.us3Path(path), d.getContentType())
 	}
-
 	// TODO(zengyan) put 为什么没有 NoSuchKey 的逻辑？？？
 }
 
 func (d *driver) Reader(ctx context.Context, path string, offset int64) (io.ReadCloser, error) {
-	header := make(http.Header)
-	// TODO(zengyan) 不确定 header 格式是否正确
-	header.Add("Range", "bytes="+strconv.FormatInt(offset, 10)+"-")
+	fmt.Printf(">> Reader() is not implemented yet\n")
+	return nil, nil
 
-	var err error
-	d.Req, err = ufsdk.NewFileRequestWithHeader(&ufsdk.Config{
-		PublicKey:       d.PublicKey,
-		PrivateKey:      d.PrivateKey,
-		BucketHost:      d.Api,
-		BucketName:      d.Bucket,
-		FileHost:        d.Endpoint,
-		VerifyUploadMD5: d.VerifyUploadMD5,
-		Endpoint:        d.Endpoint,
-	}, header, nil)
+	// header := make(http.Header)
+	// // TODO(zengyan) 不确定 header 格式是否正确
+	// header.Add("Range", "bytes="+strconv.FormatInt(offset, 10)+"-")
 
-	if err != nil {
-		return nil, err
-	}
+	// var err error
+	// d.Req, err = ufsdk.NewFileRequestWithHeader(&ufsdk.Config{
+	// 	PublicKey:       d.PublicKey,
+	// 	PrivateKey:      d.PrivateKey,
+	// 	BucketHost:      d.Api,
+	// 	BucketName:      d.Bucket,
+	// 	FileHost:        d.Endpoint,
+	// 	VerifyUploadMD5: d.VerifyUploadMD5,
+	// 	Endpoint:        d.Endpoint,
+	// }, header, nil)
 
-	// TODO(zengyan) reader writer readcloser []byte 之间的转换
-	err = d.Req.DownloadFile(writer, d.us3Path(path))
-	if err != nil {
-		return nil, err
-	}
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// // TODO(zengyan) reader writer readcloser []byte 之间的转换
+	// buf := bytes.NewBuffer(nil)
+	// writer := bufio.NewWriter(buf)
+	// err = d.Req.DownloadFile(writer, d.us3Path(path))
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// var reader io.ReadCloser
+	// io.Copy(writer, reader)
+	// return reader, nil
 
 	// TODO(zengyan) put 为什么没有 NoSuchKey 的逻辑？？？
 }
 
 func (d *driver) Writer(ctx context.Context, path string, append bool) (storagedriver.FileWriter, error) {
+	fmt.Printf(">> Writer() is not implemented yet\n")
+	return nil, nil
 }
 
 func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo, error) {
@@ -208,7 +234,10 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 	return storagedriver.FileInfoInternal{FileInfoFields: fi}, nil
 }
 
-func (d *driver) List(ctx context.Context, opath string) ([]string, error) {}
+func (d *driver) List(ctx context.Context, opath string) ([]string, error) {
+	fmt.Printf(">> List() is not implemented yet\n")
+	return nil, nil
+}
 
 func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) error {
 	err := d.Req.Copy(d.us3Path(destPath), d.Bucket, d.us3Path(sourcePath))
@@ -223,6 +252,8 @@ func (d *driver) Delete(ctx context.Context, path string) error {
 	return d.Req.DeleteFile(d.us3Path(path))
 }
 
+// 获取 key 等于 d.us3Path(path) 的文件 url
+// options 包含 expiry，用于设置该 url 的有效时间
 func (d *driver) URLFor(ctx context.Context, path string, options map[string]interface{}) (string, error) {
 	methodString := "GET"
 	method, ok := options["method"]
@@ -245,6 +276,8 @@ func (d *driver) URLFor(ctx context.Context, path string, options map[string]int
 	return d.Req.GetPrivateURL(d.us3Path(path), expiresIn), nil
 }
 
+// 遍历 path 路径下所有的文件，并对每个文件调用 f
+// * 猜测：path 是一个目录路径，而不是一个文件路径
 func (d *driver) Walk(ctx context.Context, path string, f storagedriver.WalkFn) error {
 	return storagedriver.WalkFallback(ctx, d, path, f)
 }
@@ -253,8 +286,12 @@ func (d *driver) getContentType() string {
 	return "application/octet-stream"
 }
 
+// 将 d.RootDirectory 与 path 拼起来
+// 用于获取 path 对应文件的完整 key
+// * 猜测：path 为 image 的文件名
+// 若要 put 的 image 为 106.75.215.32:8080/library/hello-world，则 path 为 /library/hello-world
+// 调用 us3Path 后返回 d.RootDirectory+path。即：/my_images/library/hello-world 或 /library/hello-world
 func (d *driver) us3Path(path string) string {
-	// 将 d.RootDirectory 与 path 拼起来返回
 	return strings.TrimLeft(strings.TrimRight(d.Rootdirectory, "/")+path, "/")
 }
 
@@ -265,12 +302,27 @@ type writer struct {
 }
 
 // Implement the storagedriver.FileWriter interface
-func (w *writer) Write(p []byte) (int, error) {}
+func (w *writer) Write(p []byte) (int, error) {
+	fmt.Printf(">> Write() is not implemented yet\n")
+	return 0, nil
+}
 
-func (w *writer) Close() error {}
+func (w *writer) Close() error {
+	fmt.Printf(">> Close() is not implemented yet\n")
+	return nil
+}
 
-func (w *writer) Size() int64 {}
+func (w *writer) Size() int64 {
+	fmt.Printf(">> Size() is not implemented yet\n")
+	return 0
+}
 
-func (w *writer) Cancel() error {}
+func (w *writer) Cancel() error {
+	fmt.Printf(">> Cancel() is not implemented yet\n")
+	return nil
+}
 
-func (w *writer) Commit() error {}
+func (w *writer) Commit() error {
+	fmt.Printf(">> Commit() is not implemented yet\n")
+	return nil
+}
