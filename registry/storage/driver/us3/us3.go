@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	ufsdk "github.com/ufilesdk-dev/ufile-gosdk"
 
 	storagedriver "github.com/distribution/distribution/v3/registry/storage/driver"
@@ -29,6 +30,7 @@ import (
 // - writer
 // - config
 // 	 - 哪些是可选的
+// - us3_test.go
 
 const driverName = "us3"
 
@@ -170,6 +172,7 @@ func (d *driver) Name() string {
 // 注：path 为 image 的名字
 // 如：/hello-world，那么该文件的 key 就应该为 /my_images/hello-world
 func (d *driver) GetContent(ctx context.Context, path string) ([]byte, error) {
+	logrus.Infof(">> GetContent()")
 	// 默认采取流式下载
 	// TODO(zengyan) 以下的方法是否可优化？拷贝次数太多？
 	buf := bytes.NewBuffer(nil)
@@ -188,7 +191,7 @@ func (d *driver) GetContent(ctx context.Context, path string) ([]byte, error) {
 // 注：path 为 image 的名字
 // 如：/hello-world，那么该文件的 key 就应该为 /my_images/hello-world
 func (d *driver) PutContent(ctx context.Context, path string, contents []byte) error {
-
+	logrus.Infof(">> PutContent()")
 	if len(contents) >= 4*1024*1024 { // contents >= 4M 采用分片流式上传
 		return d.Req.IOMutipartAsyncUpload(bytes.NewReader(contents), d.us3Path(path), d.getContentType())
 	} else { // contents < 4M 采用普通流式上传
@@ -283,6 +286,7 @@ func (d *driver) List(ctx context.Context, opath string) ([]string, error) {
 	return nil, nil
 }
 
+// 将 sourcePath 对应的文件移动至 destPath 对应的文件
 func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) error {
 	err := d.Req.Copy(d.us3Path(destPath), d.Bucket, d.us3Path(sourcePath))
 	if err != nil {
@@ -291,6 +295,7 @@ func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) e
 	return d.Delete(ctx, sourcePath)
 }
 
+// 删除 path 对应的文件
 func (d *driver) Delete(ctx context.Context, path string) error {
 	// TODO(zengyan) 需要确定到底要删什么东西？
 	return d.Req.DeleteFile(d.us3Path(path))
