@@ -81,12 +81,56 @@ type Driver struct {
 }
 
 func FromParameters(parameters map[string]interface{}) (*Driver, error) {
-	param := DriverParameters{}
+	// TODO(zengyan) 哪些是 option 的，需要对是否为 nil "" bool 进行判断
+	publicKey, ok := parameters["PublicKey"]
+	if !ok {
+		return nil, fmt.Errorf("No PublicKey parameter provided")
+	}
+	privateKey, ok := parameters["PrivateKey"]
+	if !ok {
+		return nil, fmt.Errorf("No PrivateKey parameter provided")
+	}
+	api, ok := parameters["Api"]
+	if !ok {
+		return nil, fmt.Errorf("No Api parameter provided")
+	}
+	bucket, ok := parameters["Bucket"]
+	if !ok {
+		return nil, fmt.Errorf("No Bucket parameter provided")
+	}
+	regin, ok := parameters["Regin"]
+	if !ok {
+		return nil, fmt.Errorf("No Regin parameter provided")
+	}
+	endpoint, ok := parameters["Endpoint"]
+	if !ok {
+		return nil, fmt.Errorf("No Endpoint parameter provided")
+	}
+	verifyUploadMD5 := false
+	verifyUploadMD5Bool, ok := parameters["VerifyUploadMD5"]
+	if !ok {
+		verifyUploadMD5, ok = verifyUploadMD5Bool.(bool)
+		return nil, fmt.Errorf("No VerifyUploadMD5 parameter provided")
+	}
+	rootdirectory, ok := parameters["Rootdirectory"]
+	if !ok {
+		return nil, fmt.Errorf("No Rootdirectory parameter provided")
+	}
+
+	param := DriverParameters{
+		PublicKey:       fmt.Sprint(publicKey),
+		PrivateKey:      fmt.Sprint(privateKey),
+		Api:             fmt.Sprint(api),
+		Bucket:          fmt.Sprint(bucket),
+		Regin:           fmt.Sprint(regin),
+		Endpoint:        fmt.Sprint(endpoint),
+		VerifyUploadMD5: verifyUploadMD5,
+		Rootdirectory:   fmt.Sprint(rootdirectory),
+	}
 	return New(param)
 }
 
 func New(params DriverParameters) (*Driver, error) {
-	// TODO(zengyan) 哪些是 option 的，需要对是否为 nil "" bool 进行判断
 	config := &ufsdk.Config{
 		PublicKey:       params.PublicKey,
 		PrivateKey:      params.PrivateKey,
