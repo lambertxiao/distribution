@@ -613,8 +613,6 @@ func (d *driver) GetContent(ctx context.Context, path string) ([]byte, error) {
 
 // PutContent stores the []byte content at a location designated by "path".
 func (d *driver) PutContent(ctx context.Context, path string, contents []byte) error {
-	// 猜测：image 的文件名
-	// 如：若要 put 的 image 为 106.75.215.32:8080/library/hello-world，则 path 为 /library/hello-world
 	_, err := d.S3.PutObject(&s3.PutObjectInput{
 		Bucket:               aws.String(d.Bucket),
 		Key:                  aws.String(d.s3Path(path)), // 调用 s3Path 后为 d.RootDirectory+path。如：~/my_images/library/hello-world
