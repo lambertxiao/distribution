@@ -6,9 +6,6 @@
 //
 // Because OSS is a key, value store the Stat call does not support last modification
 // time for directories (directories are an abstraction for key, value stores)
-//
-//go:build include_oss
-// +build include_oss
 
 package oss
 

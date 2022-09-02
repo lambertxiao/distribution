@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -203,39 +204,39 @@ func (d *driver) PutContent(ctx context.Context, path string, contents []byte) e
 }
 
 func (d *driver) Reader(ctx context.Context, path string, offset int64) (io.ReadCloser, error) {
-	fmt.Printf(">> Reader() is not implemented yet\n")
-	return nil, nil
+	// fmt.Printf(">> Reader() is not implemented yet\n")
+	// return nil, nil
 
-	// header := make(http.Header)
-	// // TODO(zengyan) 不确定 header 格式是否正确
-	// header.Add("Range", "bytes="+strconv.FormatInt(offset, 10)+"-")
+	header := make(http.Header)
+	// TODO(zengyan) 不确定 header 格式是否正确
+	header.Add("Range", "bytes="+strconv.FormatInt(offset, 10)+"-")
 
-	// var err error
-	// d.Req, err = ufsdk.NewFileRequestWithHeader(&ufsdk.Config{
-	// 	PublicKey:       d.PublicKey,
-	// 	PrivateKey:      d.PrivateKey,
-	// 	BucketHost:      d.Api,
-	// 	BucketName:      d.Bucket,
-	// 	FileHost:        d.Endpoint,
-	// 	VerifyUploadMD5: d.VerifyUploadMD5,
-	// 	Endpoint:        d.Endpoint,
-	// }, header, nil)
+	var err error
+	d.Req, err = ufsdk.NewFileRequestWithHeader(&ufsdk.Config{
+		PublicKey:       d.PublicKey,
+		PrivateKey:      d.PrivateKey,
+		BucketHost:      d.Api,
+		BucketName:      d.Bucket,
+		FileHost:        d.Endpoint,
+		VerifyUploadMD5: d.VerifyUploadMD5,
+		Endpoint:        d.Endpoint,
+	}, header, nil)
 
-	// if err != nil {
-	// 	return nil, err
-	// }
+	if err != nil {
+		return nil, err
+	}
 
-	// // TODO(zengyan) reader writer readcloser []byte 之间的转换
-	// buf := bytes.NewBuffer(nil)
-	// writer := bufio.NewWriter(buf)
-	// err = d.Req.DownloadFile(writer, d.us3Path(path))
-	// if err != nil {
-	// 	return nil, err
-	// }
+	// TODO(zengyan) reader writer readcloser []byte 之间的转换
+	buf := bytes.NewBuffer(nil)
+	writer := bufio.NewWriter(buf)
+	err = d.Req.DownloadFile(writer, d.us3Path(path))
+	if err != nil {
+		return nil, err
+	}
 
-	// var reader io.ReadCloser
-	// io.Copy(writer, reader)
-	// return reader, nil
+	var reader io.ReadCloser
+	io.Copy(writer, reader)
+	return reader, nil
 
 	// TODO(zengyan) put 为什么没有 NoSuchKey 的逻辑？？？
 }
