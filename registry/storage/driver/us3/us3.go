@@ -19,6 +19,8 @@ import (
 )
 
 // TODO(zengyan) NOW
+// - RUN 起来
+// - 列出缺少的 sdk
 // - reader
 //   - 几个东西的转换
 // - Move & Delete

@@ -1,3 +1,6 @@
+//go:build include_oss
+// +build include_oss
+
 package oss
 
 import (
