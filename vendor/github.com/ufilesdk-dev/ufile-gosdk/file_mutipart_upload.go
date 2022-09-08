@@ -408,8 +408,8 @@ func (u *UFileRequest) GetMultiUploadId(prefix, marker, uploadIdMarker string, l
 	authorization := u.Auth.Authorization("GET", u.BucketName, "", req.Header)
 	req.Header.Add("authorization", authorization)
 
-	fmt.Printf(">>> GetMultiUploadId()\n\t")
-	fmt.Printf(">>> req is %v\n", req)
+	// fmt.Printf(">>> GetMultiUploadId()\n\t")
+	// fmt.Printf(">>> req is %v\n", req)
 	err = u.request(req)
 	if err != nil {
 		// err = u.ParseError()
@@ -417,8 +417,8 @@ func (u *UFileRequest) GetMultiUploadId(prefix, marker, uploadIdMarker string, l
 	}
 
 	err = json.Unmarshal(u.LastResponseBody, &list)
-	fmt.Printf(">>> GetMultiUploadId()\n\t")
-	fmt.Printf(">>> list is %v\n", list)
+	// fmt.Printf(">>> GetMultiUploadId()\n\t")
+	// fmt.Printf(">>> list is %v\n", list)
 	return
 }
 

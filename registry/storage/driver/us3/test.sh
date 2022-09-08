@@ -22,12 +22,56 @@ export ROOTDIRECTORY=/my_images
 # test_project="TestWriter"
 # test_project="TestAppendWriter"
 
-project=""
+projects=(
+"riverSuite.TestContinueStreamAppendLarge"
+"riverSuite.TestContinueStreamAppendSmall"
+"riverSuite.TestDelete"
+"riverSuite.TestDeleteFolder"
+"riverSuite.TestDeleteNonexistent"
+"riverSuite.TestDeleteOnlyDeletesSubpaths"
+"riverSuite.TestInvalidPaths"
+"riverSuite.TestList"
+"riverSuite.TestMove"
+"riverSuite.TestMoveInvalid"
+"riverSuite.TestMoveNonexistent"
+"riverSuite.TestMoveOverwrite"
+"riverSuite.TestPutContentMultipleTimes"
+"riverSuite.TestReadNonexistent"
+"riverSuite.TestReadNonexistentStream"
+"riverSuite.TestReaderWithOffset"
+"riverSuite.TestRootExists"
+"riverSuite.TestStatCall"
+"riverSuite.TestTruncate"
+"riverSuite.TestURLFor"
+"riverSuite.TestValidPaths"
+"riverSuite.TestWriteRead1"
+"riverSuite.TestWriteRead2"
+"riverSuite.TestWriteRead3"
+"riverSuite.TestWriteRead4"
+"riverSuite.TestWriteReadLargeStreams" # 5G -> 500MB
+"riverSuite.TestWriteReadNonUTF8"
+"riverSuite.TestWriteReadStreams1"
+"riverSuite.TestWriteReadStreams2"
+"riverSuite.TestWriteReadStreams3"
+"riverSuite.TestWriteReadStreams4"
+"riverSuite.TestWriteReadStreamsNonUTF8"
+"riverSuite.TestConcurrentFileStreams" # 32MB * 32 -> 5MB * 5
+"riverSuite.TestConcurrentStreamReads" # 128MB * 10 -> 10MB * 10
+)
 
+echo "++++++++ ${#projects[*]} projects ++++++++"
+
+for pj in ${projects[*]}
+do
+    go test -v -check.f ${pj} 
+done
+
+# project="TestConcurrentStreamReads"
 
 # go test -timeout 30s -v -run ${test_project}
 # go test -v -timeout 30s -check.f ${project}
+# go test -v -check.list # 列出所有Test
 # go test -v -check.f ${project} # 对指定 project 进行测试，还会测试 xxx_test.go 文件中所有 Testxxx
-go test -v -check.b ${project} # 对指定 project 进行测试，还会测试 xxx_test.go 文件中所有 Testxxx
+# go test -v -check.b ${project} # 对指定 project 进行测试，还会测试 xxx_test.go 文件中所有 Testxxx
 
 # go test -v . # 对所有测试用例进行测试，包括 distribution 中的

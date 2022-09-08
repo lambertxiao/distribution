@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	ufsdk "github.com/ufilesdk-dev/ufile-gosdk"
 
 	storagedriver "github.com/distribution/distribution/v3/registry/storage/driver"
@@ -194,7 +193,8 @@ func (d *driver) GetContent(ctx context.Context, path string) ([]byte, error) {
 	// logrus.Infof(">> GetContent()")
 	fileInfo, err := d.Stat(ctx, path)
 	if fileInfo != nil && err == nil && fileInfo.IsDir() { // d.us3Path(path) 是一个目录，无法 get
-		return nil, fmt.Errorf("Path is a dir existed, but GetContent() can not support to get dir. Or path is a normal file, but the file isn't existed.\n  path is %s\n  full path is %s\n", path, d.us3Path(path))
+		// return nil, fmt.Errorf("Path is a dir existed, but GetContent() can not support to get dir. Or path is a normal file, but the file isn't existed.\n  path is %s\n  full path is %s\n", path, d.us3Path(path))
+		return nil, storagedriver.PathNotFoundError{Path: path}
 	} else if fileInfo == nil && err != nil { // 根本不存在 d.us3Path(path) 这个文件
 		statErr, ok := err.(storagedriver.PathNotFoundError)
 		if ok {
@@ -226,6 +226,17 @@ func (d *driver) PutContent(ctx context.Context, path string, contents []byte) e
 func (d *driver) Reader(ctx context.Context, path string, offset int64) (io.ReadCloser, error) {
 	// logrus.Infof(">> Reader()")
 	// logrus.Infof(">> Reader()\n\t>>> offset = %d\n", offset)
+	fileInfo, err := d.Stat(ctx, path)
+	if fileInfo != nil && err == nil && fileInfo.IsDir() { // d.us3Path(path) 是一个目录，无法 get
+		// return nil, fmt.Errorf("Path is a dir existed, but GetContent() can not support to get dir. Or path is a normal file, but the file isn't existed.\n  path is %s\n  full path is %s\n", path, d.us3Path(path))
+		return nil, storagedriver.PathNotFoundError{Path: path}
+	} else if fileInfo == nil && err != nil { // 根本不存在 d.us3Path(path) 这个文件
+		statErr, ok := err.(storagedriver.PathNotFoundError)
+		if ok {
+			return nil, statErr
+		}
+	}
+
 	respBody, err := d.Req.DownloadFileRetRespBody(d.us3Path(path), offset)
 	if err != nil {
 		err = d.Req.ParseError()
@@ -649,7 +660,7 @@ func (w *writer) Write(p []byte) (int, error) {
 }
 
 func (w *writer) Close() error {
-	logrus.Infof(">>> Close()")
+	// logrus.Infof(">>> Close()")
 	if w.closed {
 		return fmt.Errorf("already closed")
 	}

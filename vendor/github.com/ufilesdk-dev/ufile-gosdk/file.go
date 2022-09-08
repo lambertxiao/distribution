@@ -462,18 +462,18 @@ func (u *UFileRequest) DownloadFileRetRespBody(keyName string, offset int64) (io
 		return nil, err
 	}
 
-	// resBody, err := ioutil.ReadAll(resp.Body)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// defer resp.Body.Close()
+	resBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
 
-	// retReadCloser := ioutil.NopCloser(bytes.NewReader(resBody))
+	retReadCloser := ioutil.NopCloser(bytes.NewReader(resBody))
 
 	u.LastResponseStatus = resp.StatusCode
 	u.LastResponseHeader = resp.Header
-	// u.LastResponseBody = resBody
-	u.LastResponseBody = nil // 不要保存到内存！！！超过 128MB 的 body 就会撑爆内存（其实似乎是 []byte 的最大容量为 128MB）
+	u.LastResponseBody = resBody
+	// u.LastResponseBody = nil // 不要保存到内存！！！超过 128MB 的 body 就会撑爆内存（其实似乎是 []byte 的最大容量为 128MB）
 	u.lastResponse = resp
 
 	if !VerifyHTTPCode(resp.StatusCode) {
@@ -487,7 +487,8 @@ func (u *UFileRequest) DownloadFileRetRespBody(keyName string, offset int64) (io
 	if err != nil || fileSize < 0 {
 		return nil, fmt.Errorf("Parse content-lengt returned error")
 	}
-	return resp.Body, nil
+	// return resp.Body, nil
+	return retReadCloser, nil
 }
 
 // DownloadFileWithIopString 支持下载iop，直接指定iop命令字符串
