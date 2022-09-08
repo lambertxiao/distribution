@@ -373,15 +373,11 @@ func (suite *DriverSuite) TestReaderWithOffset(c *check.C) {
 	defer reader.Close()
 
 	readContents, err = ioutil.ReadAll(reader)
-	logrus.Infof("1")
 	c.Assert(err, check.IsNil)
-	logrus.Infof("2")
 	c.Assert(readContents, check.DeepEquals, contentsChunk3)
-	logrus.Infof("3")
 
 	// Ensure we get invalid offset for negative offsets.
 	reader, err = suite.StorageDriver.Reader(suite.ctx, filename, -1)
-	logrus.Infof("4")
 	c.Assert(err, check.FitsTypeOf, storagedriver.InvalidOffsetError{})
 	c.Assert(err.(storagedriver.InvalidOffsetError).Offset, check.Equals, int64(-1))
 	c.Assert(err.(storagedriver.InvalidOffsetError).Path, check.Equals, filename)

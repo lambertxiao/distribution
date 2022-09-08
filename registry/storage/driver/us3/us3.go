@@ -253,7 +253,6 @@ func (d *driver) Writer(ctx context.Context, path string, append bool) (storaged
 		if err != nil {
 			return nil, parseError(path, d.Req.ParseError()) // TODO(zengyan) 不确定这个 API 返回的 ErrMsg
 		}
-		// TODO(zengyan) 有其他获取 BlkSize 的方法没？
 		logrus.Infof(">>> Writer()\n\t >>> finish InitiateMultipartUpload()")
 		if err != nil {
 			return nil, err

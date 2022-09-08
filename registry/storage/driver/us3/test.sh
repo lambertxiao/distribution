@@ -11,7 +11,7 @@ export ROOTDIRECTORY=/my_images
 
 # test_project="TestEmptyRootList"
 # test_project="TestPutContent"
-test_project="TestDelete"
+# test_project="TestDelete"
 # test_project="TestGetContent"
 # test_project="TestURLFor"
 # test_project="TestMove"
@@ -22,12 +22,12 @@ test_project="TestDelete"
 # test_project="TestWriter"
 # test_project="TestAppendWriter"
 
-# project="BenchmarkDelete50Files"
+# project="BenchmarkPutGetEmptyFiles"
 
 
-go test -timeout 30s -v -run ${test_project}
+# go test -timeout 30s -v -run ${test_project}
 # go test -v -timeout 30s -check.f ${project}
 # go test -v -check.f ${project} # 对指定 project 进行测试，还会测试 xxx_test.go 文件中所有 Testxxx
-# go test -v -check.b ${project} # 对指定 project 进行测试，还会测试 xxx_test.go 文件中所有 Testxxx
+go test -v -check.b ${project} # 对指定 project 进行测试，还会测试 xxx_test.go 文件中所有 Testxxx
 
 # go test -v . # 对所有测试用例进行测试，包括 distribution 中的
