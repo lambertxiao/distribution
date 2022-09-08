@@ -10,8 +10,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-
-	"github.com/sirupsen/logrus"
 )
 
 // UFileRequest SDK 主要的 request 模块。本 SDK 遵从以下原则：
@@ -190,7 +188,7 @@ func (u *UFileRequest) request(req *http.Request) error {
 		return err
 	}
 
-	logrus.Infof(">>> request()\n\t>>> resp is %v, err is %v", resp, err)
+	// logrus.Infof(">>> request()\n\t>>> resp is %v, err is %v", resp, err)
 
 	err = u.responseParse(resp)
 	if err != nil {

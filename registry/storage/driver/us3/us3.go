@@ -191,10 +191,20 @@ func (d *driver) Name() string {
 // 注：path 为 image 的名字
 // 如：/hello-world，那么该文件的 key 就应该为 /my_images/hello-world
 func (d *driver) GetContent(ctx context.Context, path string) ([]byte, error) {
-	logrus.Infof(">> GetContent()")
+	// logrus.Infof(">> GetContent()")
+	fileInfo, err := d.Stat(ctx, path)
+	if fileInfo != nil && err == nil && fileInfo.IsDir() { // d.us3Path(path) 是一个目录，无法 get
+		return nil, fmt.Errorf("Path is a dir existed, but GetContent() can not support to get dir. Or path is a normal file, but the file isn't existed.\n  path is %s\n  full path is %s\n", path, d.us3Path(path))
+	} else if fileInfo == nil && err != nil { // 根本不存在 d.us3Path(path) 这个文件
+		statErr, ok := err.(storagedriver.PathNotFoundError)
+		if ok {
+			return nil, statErr
+		}
+	}
+
 	data, err := d.getContent(d.us3Path(path), 0)
 	if err != nil {
-		return nil, parseError(path, d.Req.ParseError())
+		return nil, err // 注：这里一定不会返回 storagedriver.PathNotFoundError，因为上面的 Stat() 已经做了判断
 	}
 	return data, nil
 }
@@ -204,7 +214,7 @@ func (d *driver) GetContent(ctx context.Context, path string) ([]byte, error) {
 // 注：path 为 image 的名字
 // 如：/hello-world，那么该文件的 key 就应该为 /my_images/hello-world
 func (d *driver) PutContent(ctx context.Context, path string, contents []byte) error {
-	logrus.Infof(">> PutContent()")
+	// logrus.Infof(">> PutContent()")
 	if len(contents) >= 4*1024*1024 { // contents >= 4M 采用分片流式上传
 		return d.Req.IOMutipartAsyncUpload(bytes.NewReader(contents), d.us3Path(path), d.getContentType())
 	} else { // contents < 4M 采用普通流式上传
@@ -214,8 +224,8 @@ func (d *driver) PutContent(ctx context.Context, path string, contents []byte) e
 
 // 从 offset 号字节处开始读取 d.us3Path(path) 所对应的文件
 func (d *driver) Reader(ctx context.Context, path string, offset int64) (io.ReadCloser, error) {
-	logrus.Infof(">> Reader()")
-	logrus.Infof(">> Reader()\n\t>>> offset = %d\n", offset)
+	// logrus.Infof(">> Reader()")
+	// logrus.Infof(">> Reader()\n\t>>> offset = %d\n", offset)
 	respBody, err := d.Req.DownloadFileRetRespBody(d.us3Path(path), offset)
 	if err != nil {
 		err = d.Req.ParseError()
@@ -253,14 +263,14 @@ func (d *driver) Writer(ctx context.Context, path string, append bool) (storaged
 		if err != nil {
 			return nil, parseError(path, d.Req.ParseError()) // TODO(zengyan) 不确定这个 API 返回的 ErrMsg
 		}
-		logrus.Infof(">>> Writer()\n\t >>> finish InitiateMultipartUpload()")
+		// logrus.Infof(">>> Writer()\n\t >>> finish InitiateMultipartUpload()")
 		if err != nil {
 			return nil, err
 		}
 		state := new(ufsdk.MultipartState)
 		state.GenerateMultipartState(BlkSize, dataSet.UploadId, d.getContentType(), key, parts)
-		logrus.Infof(">>> Writer()\n\t >>> finish GenerateMultipartState()")
-		logrus.Infof(">>> Writer()\n\t >>> finish AbortMultipartUpload()")
+		// logrus.Infof(">>> Writer()\n\t >>> finish GenerateMultipartState()")
+		// logrus.Infof(">>> Writer()\n\t >>> finish AbortMultipartUpload()")
 		return d.newWriter(key, state, parts), nil
 	}
 	return nil, storagedriver.PathNotFoundError{Path: path}
@@ -295,7 +305,7 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 			fi.ModTime = timestamp
 		}
 	} else if len(list.CommonPrefixes) == 1 {
-		fi.IsDir = true
+		fi.IsDir = true // 一定走不到这儿！！！因为当 ListObjects 的 delimer 为 "" 时无论如何 resp 中都没有 CommonPrefixes 字段
 	} else {
 		return nil, storagedriver.PathNotFoundError{Path: path}
 	}
@@ -323,12 +333,12 @@ func (d *driver) List(ctx context.Context, opath string) ([]string, error) {
 	}
 
 	us3Path := d.us3Path(path)
-	logrus.Infof(">>> prefix is %v", us3Path)
+	// logrus.Infof(">>> prefix is %v", us3Path)
 	listResponse, err := d.Req.ListObjects(us3Path, "", "/", listMax)
 	if err != nil {
 		return nil, parseError(path, d.Req.ParseError())
 	}
-	logrus.Infof(">>> listResponse is %v", listResponse)
+	// logrus.Infof(">>> listResponse is %v", listResponse)
 
 	files := []string{}
 	directories := []string{}
@@ -370,7 +380,7 @@ func (d *driver) List(ctx context.Context, opath string) ([]string, error) {
 
 // 将 sourcePath 对应的文件移动至 destPath 对应的文件
 func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) error {
-	logrus.Infof(">> Move()")
+	// logrus.Infof(">> Move()")
 	// logrus.Infof(">>> d.Bucket is %v", d.Bucket)
 	err := d.Req.Copy(d.us3Path(destPath), d.Bucket, d.us3Path(sourcePath))
 	// logrus.Infof(">>> Copy's return is %v", err)
@@ -399,7 +409,7 @@ func isSubPath(path, target string) (bool, error) {
 // 注：上层保证 path 一定以 / 开头，若非根路径，则不已 / 结尾
 // 注：path 是一个路径，它可以表示一个文件，也可以表示一个目录
 func (d *driver) Delete(ctx context.Context, path string) error {
-	logrus.Infof(">>> Delete()")
+	// logrus.Infof(">>> Delete()")
 	_, statErr := d.Stat(ctx, path)
 	if err, ok := statErr.(storagedriver.PathNotFoundError); ok {
 		return err
@@ -407,9 +417,9 @@ func (d *driver) Delete(ctx context.Context, path string) error {
 	prefix := d.us3Path(path)
 	marker := ""
 	for {
-		logrus.Infof(">>> Delete()\n\t>>> prefix is %v", prefix)
+		// logrus.Infof(">>> Delete()\n\t>>> prefix is %v", prefix)
 		list, err := d.Req.ListObjects(prefix, marker, "", listMax)
-		logrus.Infof(">>> Delete()\n\t>>> list is %v", list)
+		// logrus.Infof(">>> Delete()\n\t>>> list is %v", list)
 		if err != nil {
 			return parseError(path, d.Req.ParseError())
 		}
@@ -489,7 +499,9 @@ func (d *driver) getContent(key string, offset int64) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ioutil.ReadAll(respBody)
+	data, err := ioutil.ReadAll(respBody)
+	respBody.Close()
+	return data, err
 }
 
 func parseError(path string, err error) error {
@@ -667,7 +679,7 @@ func (w *writer) Cancel() error {
 }
 
 func (w *writer) Commit() error {
-	logrus.Infof(">>> Commit()")
+	// logrus.Infof(">>> Commit()")
 	if w.closed {
 		return fmt.Errorf("already closed")
 	} else if w.committed {
@@ -682,7 +694,7 @@ func (w *writer) Commit() error {
 			return err
 		}
 	}
-	logrus.Infof(">>> Commit()\n\t>>> len(readyPart) = %v\n", len(w.readyPart))
+	// logrus.Infof(">>> Commit()\n\t>>> len(readyPart) = %v\n", len(w.readyPart))
 	w.committed = true
 	err := w.driver.Req.FinishMultipartUpload(w.state) // 分块合并为完整文件
 	if err != nil {
@@ -693,8 +705,7 @@ func (w *writer) Commit() error {
 
 func (w *writer) flushPart() error {
 	cnt++
-	logrus.Infof(">>> flushPart()\n\t>>> cnt = %v, num = %v\n", cnt, num)
-	// logrus.Infof(">>> flushPart()")
+	// logrus.Infof(">>> flushPart()\n\t>>> cnt = %v, num = %v\n", cnt, num)
 	if len(w.readyPart) == 0 && len(w.pendingPart) == 0 {
 		// nothing to write
 		return nil
@@ -708,7 +719,7 @@ func (w *writer) flushPart() error {
 	// 	w.pendingPart = nil
 	// }
 
-	logrus.Infof(">>> flushPart()\n\t>>> before upload, len(w.readyPart) = %v, len(w.pendingPart) = %v\n", len(w.readyPart), len(w.pendingPart))
+	// logrus.Infof(">>> flushPart()\n\t>>> before upload, len(w.readyPart) = %v, len(w.pendingPart) = %v\n", len(w.readyPart), len(w.pendingPart))
 	part, err := w.driver.Req.UploadPartRetPart(bytes.NewBuffer(w.readyPart), w.state, len(w.parts)) // 将 readyPart 上传
 	if err != nil {
 		return err
@@ -717,6 +728,6 @@ func (w *writer) flushPart() error {
 	w.parts = append(w.parts, part)
 	w.readyPart = w.pendingPart
 	w.pendingPart = nil
-	logrus.Infof(">>> flushPart()\n\t>>> after upload, len(w.readyPart) = %v, len(w.pendingPart) = %v\n", len(w.readyPart), len(w.pendingPart))
+	// logrus.Infof(">>> flushPart()\n\t>>> after upload, len(w.readyPart) = %v, len(w.pendingPart) = %v\n", len(w.readyPart), len(w.pendingPart))
 	return nil
 }

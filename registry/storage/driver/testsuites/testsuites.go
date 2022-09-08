@@ -307,8 +307,8 @@ func (suite *DriverSuite) TestWriteReadLargeStreams(c *check.C) {
 	defer suite.deletePath(c, firstPart(filename))
 
 	checksum := sha256.New()
-	// var fileSize int64 = 5 * 1024 * 1024 * 1024 // 它本来是 5GB，太慢了！！！
-	var fileSize int64 = 500 * 1024 * 1024 // 1GB 会超过 10min，程序会自动超时退出，带宽太慢了。。。
+	var fileSize int64 = 5 * 1024 * 1024 * 1024 // 它本来是 5GB，太慢了！！！
+	// var fileSize int64 = 500 * 1024 * 1024 // 1GB 会超过 10min，程序会自动超时退出，带宽太慢了。。。
 
 	contents := newRandReader(fileSize)
 
@@ -899,8 +899,8 @@ func (suite *DriverSuite) TestPutContentMultipleTimes(c *check.C) {
 // the same file simultaneously with various offsets.
 func (suite *DriverSuite) TestConcurrentStreamReads(c *check.C) {
 	fmt.Printf("==== [ TestConcurrentStreamReads ] ====\n")
-	// var filesize int64 = 128 * 1024 * 1024 // 128MB 太慢了，猜测是带宽问题！！！
-	var filesize int64 = 10 * 1024 * 1024 // 耗时 32s
+	var filesize int64 = 128 * 1024 * 1024 // 128MB 太慢了，猜测是带宽问题！！！
+	// var filesize int64 = 10 * 1024 * 1024 // 耗时 32s
 
 	if testing.Short() {
 		filesize = 10 * 1024 * 1024
@@ -939,8 +939,8 @@ func (suite *DriverSuite) TestConcurrentStreamReads(c *check.C) {
 // in to Writer concurrently without hanging.
 func (suite *DriverSuite) TestConcurrentFileStreams(c *check.C) {
 	fmt.Printf("==== [ TestConcurrentFileStreams ] ====\n")
-	// numStreams := 32 // 太慢了。。。
-	numStreams := 5
+	numStreams := 32 // 太慢了。。。
+	// numStreams := 5
 
 	if testing.Short() {
 		numStreams = 8
@@ -1029,6 +1029,7 @@ func (suite *DriverSuite) BenchmarkPutGet1MBFiles(c *check.C) {
 // BenchmarkPutGet1GBFiles benchmarks PutContent/GetContent for 1GB files
 func (suite *DriverSuite) BenchmarkPutGet1GBFiles(c *check.C) {
 	suite.benchmarkPutGetFiles(c, 1024*1024*1024)
+	// suite.benchmarkPutGetFiles(c, 128*1024*1024) // 128MB 可以通过
 }
 
 func (suite *DriverSuite) benchmarkPutGetFiles(c *check.C, size int64) {
@@ -1039,12 +1040,14 @@ func (suite *DriverSuite) benchmarkPutGetFiles(c *check.C, size int64) {
 		suite.StorageDriver.Delete(suite.ctx, firstPart(parentDir))
 	}()
 
+	fmt.Printf("|||| c.N = %v\n", c.N)
 	for i := 0; i < c.N; i++ {
 		filename := path.Join(parentDir, randomPath(32))
 		err := suite.StorageDriver.PutContent(suite.ctx, filename, randomContents(size))
 		c.Assert(err, check.IsNil)
 
 		_, err = suite.StorageDriver.GetContent(suite.ctx, filename)
+		fmt.Printf("|||| succeed i = %v\n", i)
 		c.Assert(err, check.IsNil)
 	}
 }

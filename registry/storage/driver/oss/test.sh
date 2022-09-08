@@ -1,12 +1,11 @@
 #!/bin/bash
 
-export PUBLICKEY=TOKEN_cbdec267-2c4a-4604-804e-caf5873bb519
-export PRIVATEKEY=bdbea8cc-655b-4d56-8f6d-1b8b7c595fe6
-# export API=api.ucloud.cn # 可选
-export BUCKET=lambert-wlcb
-export REGIN=cn-wlcb
-export ENDPOINT=cn-wlcb.ufileos.com
-# export VERIFYUPLOADMD5=false # 可选
+export ALIYUN_ACCESS_KEY_ID=LTAI5tFVUcHQupLBe9xSGeCP
+export ALIYUN_ACCESS_KEY_SECRET=M3pB4knqbmeYt6A5j2e6Vi4VpeBnBR
+export OSS_BUCKET=bulabula-test-bigfile
+export OSS_REGION=oss-cn-shanghai
+export OSS_ENDPOINT=bulabula-test-bigfile.oss-cn-shanghai.aliyuncs.com
+export OSS_ENCRYPT=false
 export ROOTDIRECTORY=/my_images
 
 # test_project="TestEmptyRootList"

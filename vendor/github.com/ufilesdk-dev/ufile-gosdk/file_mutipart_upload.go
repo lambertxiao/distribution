@@ -12,8 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-
-	"github.com/sirupsen/logrus"
 )
 
 // MultipartState 用于保存分片上传的中间状态
@@ -60,12 +58,12 @@ type UploadPartResponse struct {
 }
 
 func (m *MultipartState) GenerateMultipartState(blkSize int, uploadID, mimeType, keyName string, parts []*Part) {
-	fmt.Printf(">>> GenerateMultipartState()\n\t")
-	fmt.Printf(">>> blkSize = %v\n\t", blkSize)
-	fmt.Printf(">>> uploadID = %v\n\t", uploadID)
-	fmt.Printf(">>> mimeType = %v\n\t", mimeType)
-	fmt.Printf(">>> keyName = %v\n\t", keyName)
-	fmt.Printf(">>> parts = %v\n", parts)
+	// fmt.Printf(">>> GenerateMultipartState()\n\t")
+	// fmt.Printf(">>> blkSize = %v\n\t", blkSize)
+	// fmt.Printf(">>> uploadID = %v\n\t", uploadID)
+	// fmt.Printf(">>> mimeType = %v\n\t", mimeType)
+	// fmt.Printf(">>> keyName = %v\n\t", keyName)
+	// fmt.Printf(">>> parts = %v\n", parts)
 	m.BlkSize = blkSize
 	m.uploadID = uploadID
 	m.mimeType = mimeType
@@ -447,8 +445,8 @@ func (u *UFileRequest) GetMultiUploadPart(uploadId string, maxParts, partNumberM
 	authorization := u.Auth.Authorization("GET", u.BucketName, "", req.Header)
 	req.Header.Add("authorization", authorization)
 
-	fmt.Printf(">>> GetMultiUploadPart()\n\t")
-	fmt.Printf(">>> req is %v\n", req)
+	// fmt.Printf(">>> GetMultiUploadPart()\n\t")
+	// fmt.Printf(">>> req is %v\n", req)
 	err = u.request(req)
 	if err != nil {
 		// err = u.ParseError()
@@ -458,7 +456,7 @@ func (u *UFileRequest) GetMultiUploadPart(uploadId string, maxParts, partNumberM
 	var uploadPartResponse UploadPartResponse
 	err = json.Unmarshal(u.LastResponseBody, &uploadPartResponse)
 	if err != nil {
-		logrus.Infof("||| 确实解析不了，err = %v\n", err)
+		// logrus.Infof("||| 确实解析不了，err = %v\n", err)
 		return
 	}
 
@@ -468,11 +466,11 @@ func (u *UFileRequest) GetMultiUploadPart(uploadId string, maxParts, partNumberM
 		parts = append(parts, &tmp)
 		// fmt.Println("parts = ", parts)
 	}
-	fmt.Printf(">>> GetMultiUploadPart()\n\t")
-	fmt.Printf(">>> parts are %v\n", parts)
-	for i, part := range parts {
-		fmt.Printf("\t\t>>> part[%v] = %v\n", i, *part)
-	}
+	// fmt.Printf(">>> GetMultiUploadPart()\n\t")
+	// fmt.Printf(">>> parts are %v\n", parts)
+	// for i, part := range parts {
+	// fmt.Printf("\t\t>>> part[%v] = %v\n", i, *part)
+	// }
 	return
 }
 
