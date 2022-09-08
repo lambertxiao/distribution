@@ -44,7 +44,6 @@ func (u *UFileRequest) IOPut(reader io.Reader, keyName, mimeType string) (err er
 	return u.request(req)
 }
 
-//
 // IOMutipartAsyncUpload 流式分片上传接口，你必须确保你的 reader 接口每次调用是递进式的调用，也就是像文件那样的读取方式。
 // mimeType 在这里的检测不会很准确，你可以手动指定更精确的 mimetype。
 // 这里的会每次读取4M 的数据到 buffer 里面，适用于大量数据上传。

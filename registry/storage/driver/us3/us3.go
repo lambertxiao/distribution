@@ -1,11 +1,11 @@
 package us3
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"strconv"
 	"strings"
@@ -19,23 +19,18 @@ import (
 	"github.com/distribution/distribution/v3/registry/storage/driver/factory"
 )
 
-// TODO(zengyan) NOW
-// - RUN 起来
-// - 列出缺少的 sdk
-// - reader
-//   - 几个东西的转换
-// - Move & Delete
-//   - 具体要删除/移动哪些文件
-// - Stat & List
-// 	 - 具体要显示哪些文件
-//   - path 到底是什么
-//	 - 有一些特殊情况需要考虑
-// - writer
-// - config
-// 	 - 哪些是可选的
-// - us3_test.go
-
 const driverName = "us3"
+
+const apiName = "api.ucloud.cn"
+
+// listMax is the largest amount of objects you can request from S3 in a list call
+const listMax = 1000
+
+const limit = 100
+
+const maxParts = 1000
+
+var BlkSize = 0 // 保存 InitiateMultipartUpload 返回的分片大小
 
 type DriverParameters struct {
 	PublicKey       string // *************
@@ -45,7 +40,7 @@ type DriverParameters struct {
 	Regin           string // cn-sh2
 	Endpoint        string // cn-sh2.ufileos.com
 	VerifyUploadMD5 bool   // false
-	Rootdirectory   string // /my_images 或 /
+	RootDirectory   string // /my_images 或 /
 }
 
 // ============================= init ===================================
@@ -66,7 +61,7 @@ func (factory *us3DriverFactory) Create(parameters map[string]interface{}) (stor
 // ============================= dirver =================================
 
 type driver struct {
-	// TODO(zengyan) driver struct
+	// TODO(zengyan) driver struct 哪些是用不到的数据
 	Req             *ufsdk.UFileRequest
 	PublicKey       string
 	PrivateKey      string
@@ -74,7 +69,7 @@ type driver struct {
 	Bucket          string
 	Endpoint        string
 	VerifyUploadMD5 bool
-	Rootdirectory   string
+	RootDirectory   string
 }
 
 type baseEmbed struct {
@@ -86,7 +81,6 @@ type Driver struct {
 }
 
 func FromParameters(parameters map[string]interface{}) (*Driver, error) {
-	// TODO(zengyan) 哪些是 option 的，需要对是否为 nil "" bool 进行判断
 	publicKey, ok := parameters["PublicKey"]
 	if !ok {
 		return nil, fmt.Errorf("No PublicKey parameter provided")
@@ -97,7 +91,7 @@ func FromParameters(parameters map[string]interface{}) (*Driver, error) {
 	}
 	api, ok := parameters["Api"]
 	if !ok {
-		return nil, fmt.Errorf("No Api parameter provided")
+		api = apiName
 	}
 	bucket, ok := parameters["Bucket"]
 	if !ok {
@@ -113,13 +107,15 @@ func FromParameters(parameters map[string]interface{}) (*Driver, error) {
 	}
 	verifyUploadMD5 := false
 	verifyUploadMD5Bool, ok := parameters["VerifyUploadMD5"]
-	if !ok {
+	if ok {
 		verifyUploadMD5, ok = verifyUploadMD5Bool.(bool)
-		return nil, fmt.Errorf("No VerifyUploadMD5 parameter provided")
+		if !ok {
+			return nil, fmt.Errorf("VerifyUploadMD5 parameter is not a type of 'bool'")
+		}
 	}
-	rootdirectory, ok := parameters["Rootdirectory"]
+	rootDirectory, ok := parameters["RootDirectory"]
 	if !ok {
-		return nil, fmt.Errorf("No Rootdirectory parameter provided")
+		return nil, fmt.Errorf("No RootDirectory parameter provided")
 	}
 
 	param := DriverParameters{
@@ -130,21 +126,35 @@ func FromParameters(parameters map[string]interface{}) (*Driver, error) {
 		Regin:           fmt.Sprint(regin),
 		Endpoint:        fmt.Sprint(endpoint),
 		VerifyUploadMD5: verifyUploadMD5,
-		Rootdirectory:   fmt.Sprint(rootdirectory),
+		RootDirectory:   fmt.Sprint(rootDirectory),
 	}
 	return New(param)
 }
 
 func New(params DriverParameters) (*Driver, error) {
-	config := &ufsdk.Config{
-		PublicKey:       params.PublicKey,
-		PrivateKey:      params.PrivateKey,
-		BucketHost:      params.Api,
-		BucketName:      params.Bucket,
-		FileHost:        params.Endpoint,
-		VerifyUploadMD5: params.VerifyUploadMD5,
-		Endpoint:        params.Endpoint,
-	}
+
+	// TODO(NOTE) 这里一定要用 new，而不是 config = &ufsdk.Config{...}。否则 NewFileRequest 会出错，导致 genFileURL 得不到正确的 URL
+	// 猜测是堆变量和临时变量的区别
+	config := new(ufsdk.Config)
+	config.PublicKey = params.PublicKey
+	config.PrivateKey = params.PrivateKey
+	config.BucketHost = params.Api
+	config.BucketName = params.Bucket
+	config.FileHost = params.Endpoint
+	config.VerifyUploadMD5 = params.VerifyUploadMD5
+	config.Endpoint = ""
+	// logrus.Info(">>> New()")
+	// logrus.Info(">>> config is ", config)
+
+	// config := &ufsdk.Config{
+	// 	PublicKey:       params.PublicKey,
+	// 	PrivateKey:      params.PrivateKey,
+	// 	BucketHost:      params.Api,
+	// 	BucketName:      params.Bucket,
+	// 	FileHost:        params.Endpoint,
+	// 	VerifyUploadMD5: params.VerifyUploadMD5,
+	// 	Endpoint:        "",
+	// }
 
 	req, err := ufsdk.NewFileRequest(config, nil)
 	if err != nil {
@@ -152,8 +162,14 @@ func New(params DriverParameters) (*Driver, error) {
 	}
 
 	d := &driver{
-		Req:           req,
-		Rootdirectory: params.Rootdirectory,
+		Req:             req,
+		PublicKey:       params.PublicKey,
+		PrivateKey:      params.PrivateKey,
+		Api:             params.Api,
+		Bucket:          params.Bucket,
+		Endpoint:        params.Endpoint,
+		VerifyUploadMD5: params.VerifyUploadMD5,
+		RootDirectory:   params.RootDirectory,
 	}
 
 	return &Driver{
@@ -176,17 +192,11 @@ func (d *driver) Name() string {
 // 如：/hello-world，那么该文件的 key 就应该为 /my_images/hello-world
 func (d *driver) GetContent(ctx context.Context, path string) ([]byte, error) {
 	logrus.Infof(">> GetContent()")
-	// 默认采取流式下载
-	// TODO(zengyan) 以下的方法是否可优化？拷贝次数太多？
-	buf := bytes.NewBuffer(nil)
-	writer := bufio.NewWriter(buf)
-	err := d.Req.DownloadFile(writer, path)
+	data, err := d.getContent(d.us3Path(path), 0)
 	if err != nil {
-		return nil, err
+		return nil, parseError(path, d.Req.ParseError())
 	}
-	writer.Flush()
-	return buf.Bytes(), err
-	// TODO(zengyan) get 为什么没有 NoSuchKey 的逻辑？？？
+	return data, nil
 }
 
 // 上传 path 所对应的 image
@@ -200,55 +210,67 @@ func (d *driver) PutContent(ctx context.Context, path string, contents []byte) e
 	} else { // contents < 4M 采用普通流式上传
 		return d.Req.IOPut(bytes.NewReader(contents), d.us3Path(path), d.getContentType())
 	}
-	// TODO(zengyan) put 为什么没有 NoSuchKey 的逻辑？？？
 }
 
+// 从 offset 号字节处开始读取 d.us3Path(path) 所对应的文件
 func (d *driver) Reader(ctx context.Context, path string, offset int64) (io.ReadCloser, error) {
-	// fmt.Printf(">> Reader() is not implemented yet\n")
-	// return nil, nil
-
-	header := make(http.Header)
-	// TODO(zengyan) 不确定 header 格式是否正确
-	header.Add("Range", "bytes="+strconv.FormatInt(offset, 10)+"-")
-
-	var err error
-	d.Req, err = ufsdk.NewFileRequestWithHeader(&ufsdk.Config{
-		PublicKey:       d.PublicKey,
-		PrivateKey:      d.PrivateKey,
-		BucketHost:      d.Api,
-		BucketName:      d.Bucket,
-		FileHost:        d.Endpoint,
-		VerifyUploadMD5: d.VerifyUploadMD5,
-		Endpoint:        d.Endpoint,
-	}, header, nil)
-
+	logrus.Infof(">> Reader()")
+	logrus.Infof(">> Reader()\n\t>>> offset = %d\n", offset)
+	respBody, err := d.Req.DownloadFileRetRespBody(d.us3Path(path), offset)
 	if err != nil {
-		return nil, err
+		err = d.Req.ParseError()
+		if us3Err, ok := err.(*ufsdk.Error); ok && us3Err.StatusCode == http.StatusRequestedRangeNotSatisfiable && (us3Err.ErrMsg == "invalid range" || us3Err.RetCode == 0) {
+			// return ioutil.NopCloser(bytes.NewReader(nil)), storagedriver.InvalidOffsetError{Path: path, Offset: offset}
+			return ioutil.NopCloser(bytes.NewReader(nil)), nil // 如果发生 range 非法，则需要返回一个空的 reader，且不要返回 err！！！
+		}
+		return nil, parseError(path, err)
 	}
-
-	// TODO(zengyan) reader writer readcloser []byte 之间的转换
-	buf := bytes.NewBuffer(nil)
-	writer := bufio.NewWriter(buf)
-	err = d.Req.DownloadFile(writer, d.us3Path(path))
-	if err != nil {
-		return nil, err
-	}
-
-	var reader io.ReadCloser
-	io.Copy(writer, reader)
-	return reader, nil
-
-	// TODO(zengyan) put 为什么没有 NoSuchKey 的逻辑？？？
+	return respBody, nil
 }
 
 func (d *driver) Writer(ctx context.Context, path string, append bool) (storagedriver.FileWriter, error) {
-	fmt.Printf(">> Writer() is not implemented yet\n")
-	return nil, nil
+	// logrus.Infof(">>> Writer()")
+	key := d.us3Path(path)
+	if !append {
+		state, err := d.Req.InitiateMultipartUpload(key, d.getContentType())
+		if err != nil {
+			return nil, err
+		}
+		// 保存分片大小
+		BlkSize = state.BlkSize
+		return d.newWriter(key, state, nil), nil
+	}
+	list, err := d.Req.GetMultiUploadId(key, "", "", limit) // 获取当前 bucket 正在进行分片上传的，但未 finish 的 upload 事件（即所有 multiState）
+	if err != nil {
+		return nil, parseError(path, d.Req.ParseError()) // TODO(zengyan) 不确定这个 API 返回的 ErrMsg
+	}
+	for _, dataSet := range list.DataSet {
+		if key != dataSet.FileName {
+			continue
+		}
+		// 此时 state 为之前进行过分块上传 key 的那个 state，它也正是要传给 newWriter 的
+		parts, err := d.Req.GetMultiUploadPart(dataSet.UploadId, maxParts, 0) // 获取当前这个 uploadId 已上传的所有 part 信息
+		if err != nil {
+			return nil, parseError(path, d.Req.ParseError()) // TODO(zengyan) 不确定这个 API 返回的 ErrMsg
+		}
+		// TODO(zengyan) 有其他获取 BlkSize 的方法没？
+		logrus.Infof(">>> Writer()\n\t >>> finish InitiateMultipartUpload()")
+		if err != nil {
+			return nil, err
+		}
+		state := new(ufsdk.MultipartState)
+		state.GenerateMultipartState(BlkSize, dataSet.UploadId, d.getContentType(), key, parts)
+		logrus.Infof(">>> Writer()\n\t >>> finish GenerateMultipartState()")
+		logrus.Infof(">>> Writer()\n\t >>> finish AbortMultipartUpload()")
+		return d.newWriter(key, state, parts), nil
+	}
+	return nil, storagedriver.PathNotFoundError{Path: path}
 }
 
+// 获取指定 d.us3Path(path) 的文件信息，包含其文件大小，最后一次修改时间，通过返回值返回
+// 注：d.us3Path(path) 应为完整的文件名，若为普通文件则结尾没有 /，若为目录文件则结尾有 /
 func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo, error) {
-	// TODO(zengyan) 确定一下 delim 是否为 ""
-	list, err := d.Req.ListObjects(d.us3Path(path), "", "", 1)
+	list, err := d.Req.ListObjects(d.us3Path(path), "", "", 1) // 返回包含 prefix 的所有文件，包括文件夹
 	if err != nil {
 		return nil, err
 	}
@@ -258,9 +280,11 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 	}
 
 	if len(list.Contents) == 1 {
-		// TODO(zengyan) 由于 ListObjects 是前缀匹配，存在一种情况，path 为真实存在的文件名，但是用户输入 path 时末尾漏了一位。这将导致程序返回 path is a dir
+		// 由于 ListObjects 是前缀匹配，存在一种情况，path 为真实存在的文件名，但是用户输入 path 时末尾漏了一位。这将导致程序返回 path is a dir
+		// 猜测：Stat 的调用者会根据返回值进行判断，若 path is dir 则直接返回不存在 path 这个文件，因此不必担心是否将非 path 的 file 错误的视为一个 dir
 		if list.Contents[0].Key != d.us3Path(path) {
 			fi.IsDir = true
+			// return nil, storagedriver.PathNotFoundError{Path: path}
 		} else {
 			fi.IsDir = false
 			size, err := strconv.ParseInt(list.Contents[0].Size, 10, 64)
@@ -268,11 +292,7 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 				return nil, err
 			}
 			fi.Size = size
-			// TODO(zengyan) 不确定这里返回的 int 类型的 LastModified 是否能按 RFC3339Nano 求出 time.time 类型的值
-			timestamp, err := time.Parse(time.RFC3339Nano, strconv.Itoa(list.Contents[0].LastModified))
-			if err != nil {
-				return nil, err
-			}
+			timestamp := time.Unix(int64(list.Contents[0].LastModified), 0)
 			fi.ModTime = timestamp
 		}
 	} else if len(list.CommonPrefixes) == 1 {
@@ -284,24 +304,137 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 	return storagedriver.FileInfoInternal{FileInfoFields: fi}, nil
 }
 
+// 获取 d.us3Path(path) 目录中的文件列表
+// 注：只会获取 path 中的文件（不包括目录），而不会获取子文件夹中的文件
+// 注：path 末尾不能含 /，开头必须有 /，否则报错，这是 List() 上层要求的
+// 注：无论 d.us3Path(path) 是否为目录文件，List() 均会将其视为目录文件，即在 d.us3Path(path) 末尾添加 /，这会保证在调用 ListObjects 时一定以 / 结尾
+// 注：d.Req.ListObjects("A/B/", "", "/", listMax) 并不会返回 "A/B" 这个目录文件
+// 注：若 d.us3Path(path) 目录中没有文件，则会返回一个 storagedriver.PathNotFoundError
 func (d *driver) List(ctx context.Context, opath string) ([]string, error) {
-	fmt.Printf(">> List() is not implemented yet\n")
-	return nil, nil
+	path := opath
+	// 保证 path 以 / 结尾
+	if path != "/" && opath[len(path)-1] != '/' {
+		path = path + "/"
+	}
+
+	// 保证 prefix 非空
+	prefix := ""
+	if d.us3Path("") == "" {
+		prefix = "/"
+	}
+
+	us3Path := d.us3Path(path)
+	logrus.Infof(">>> prefix is %v", us3Path)
+	listResponse, err := d.Req.ListObjects(us3Path, "", "/", listMax)
+	if err != nil {
+		return nil, parseError(path, d.Req.ParseError())
+	}
+	logrus.Infof(">>> listResponse is %v", listResponse)
+
+	files := []string{}
+	directories := []string{}
+
+	for {
+		for _, key := range listResponse.Contents {
+			files = append(files, strings.Replace(key.Key, d.us3Path(""), prefix, 1))
+		}
+
+		for _, commonPrefix := range listResponse.CommonPrefixes {
+			commonPrefix := commonPrefix.Prefix
+			directories = append(directories, strings.Replace(commonPrefix[0:len(commonPrefix)-1], d.us3Path(""), prefix, 1))
+		}
+
+		if listResponse.IsTruncated {
+			listResponse, err = d.Req.ListObjects(us3Path, listResponse.NextMarker, "/", listMax)
+			if err != nil {
+				return nil, parseError(path, d.Req.ParseError())
+			}
+		} else {
+			break
+		}
+	}
+
+	// This is to cover for the cases when the first key equal to us3Path.
+	if len(files) > 0 && files[0] == strings.Replace(us3Path, d.us3Path(""), prefix, 1) {
+		files = files[1:]
+	}
+
+	if opath != "/" {
+		if len(files) == 0 && len(directories) == 0 {
+			// Treat empty response as missing directory, since we don't actually have directories in us3.
+			return nil, storagedriver.PathNotFoundError{Path: opath}
+		}
+	}
+
+	return append(files, directories...), nil
 }
 
 // 将 sourcePath 对应的文件移动至 destPath 对应的文件
 func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) error {
+	logrus.Infof(">> Move()")
+	// logrus.Infof(">>> d.Bucket is %v", d.Bucket)
 	err := d.Req.Copy(d.us3Path(destPath), d.Bucket, d.us3Path(sourcePath))
+	// logrus.Infof(">>> Copy's return is %v", err)
 	if err != nil {
-		return err
+		return parseError(sourcePath, d.Req.ParseError()) // TODO(zengyan) 到底是因为 sourcePath 还是 destPath 返回的 404？？？
 	}
 	return d.Delete(ctx, sourcePath)
 }
 
-// 删除 path 对应的文件
+// 注：上层应该保证 path 一定以 / 开头，若非根路径，则不已 / 结尾
+// 例如：path = /ABC target = /ABCabc 则返回 false
+// 例如：path = /ABC target = /ABCabc/XYZ 则返回 false
+// 例如：path = /ABC target = /ABC/abc 则返回 true
+// 例如：path = /ABC target = /ABC 则返回 true
+func isSubPath(path, target string) (bool, error) {
+	// logrus.Infof(">>> isSubPath()\n\t>>> path is %s, target is %s\n", path, target)
+	if len(path) > len(target) {
+		return false, fmt.Errorf("Something error, path should be prefix of target. While path is %s, target is %s\n", path, target)
+	} else if len(path) == len(target) || target[len(path)] == '/' {
+		return true, nil
+	}
+	return false, nil
+}
+
+// 删除 path 下的所有文件（包括目录文件）
+// 注：上层保证 path 一定以 / 开头，若非根路径，则不已 / 结尾
+// 注：path 是一个路径，它可以表示一个文件，也可以表示一个目录
 func (d *driver) Delete(ctx context.Context, path string) error {
-	// TODO(zengyan) 需要确定到底要删什么东西？
-	return d.Req.DeleteFile(d.us3Path(path))
+	logrus.Infof(">>> Delete()")
+	_, statErr := d.Stat(ctx, path)
+	if err, ok := statErr.(storagedriver.PathNotFoundError); ok {
+		return err
+	}
+	prefix := d.us3Path(path)
+	marker := ""
+	for {
+		logrus.Infof(">>> Delete()\n\t>>> prefix is %v", prefix)
+		list, err := d.Req.ListObjects(prefix, marker, "", listMax)
+		logrus.Infof(">>> Delete()\n\t>>> list is %v", list)
+		if err != nil {
+			return parseError(path, d.Req.ParseError())
+		}
+		for _, object := range list.Contents {
+			ok, err := isSubPath(prefix, object.Key)
+			if err != nil {
+				return err
+			}
+			if ok { // 仅当 object.Key 等于 prefix 或是 prefix 的子目录时才会删除该 object。否则应该跳过该 object
+				err = d.Req.DeleteFile(object.Key)
+				if err != nil {
+					return parseError(path, d.Req.ParseError())
+				}
+			}
+		}
+		// logrus.Infof(">>> Delete()\n\t>>> marker is %v, NextMarker is %v", marker, list.NextMarker)
+		marker = list.NextMarker
+		// logrus.Infof(">>> Delete()\n\t>>> marker is %v, NextMarker is %v", marker, list.NextMarker)
+
+		if len(list.Contents) == 0 || len(list.NextMarker) <= 0 {
+			break
+		}
+	}
+	return nil
 }
 
 // 获取 key 等于 d.us3Path(path) 的文件 url
@@ -329,8 +462,11 @@ func (d *driver) URLFor(ctx context.Context, path string, options map[string]int
 }
 
 // 遍历 path 路径下所有的文件，并对每个文件调用 f
-// * 猜测：path 是一个目录路径，而不是一个文件路径
+// 注：path 应该是一个目录文件，并且 path 不能以 / 结尾
+// 问题在两点：1.Walk的真实需求，2.List的真实需求
+// TODO(zengyan) Walk() 目前的效果：递归遍历 d.us3Path(path) 这个目录中的所有文件，先遍历目录文件。若遇到空的目录文件，则会直接退出，不会继续遍历
 func (d *driver) Walk(ctx context.Context, path string, f storagedriver.WalkFn) error {
+	// 注：storagedriver.WalkFallback 里会先调用 List
 	return storagedriver.WalkFallback(ctx, d, path, f)
 }
 
@@ -340,41 +476,248 @@ func (d *driver) getContentType() string {
 
 // 将 d.RootDirectory 与 path 拼起来
 // 用于获取 path 对应文件的完整 key
-// * 猜测：path 为 image 的文件名
+// 猜测：path 为 image 的文件名
 // 若要 put 的 image 为 106.75.215.32:8080/library/hello-world，则 path 为 /library/hello-world
 // 调用 us3Path 后返回 d.RootDirectory+path。即：/my_images/library/hello-world 或 /library/hello-world
 func (d *driver) us3Path(path string) string {
-	return strings.TrimLeft(strings.TrimRight(d.Rootdirectory, "/")+path, "/")
+	return strings.TrimLeft(strings.TrimRight(d.RootDirectory, "/")+path, "/")
+}
+
+func (d *driver) getContent(key string, offset int64) ([]byte, error) {
+	// 注：key 为绝对路径
+	// 默认采取流式下载
+	respBody, err := d.Req.DownloadFileRetRespBody(key, offset)
+	if err != nil {
+		return nil, err
+	}
+	return ioutil.ReadAll(respBody)
+}
+
+func parseError(path string, err error) error {
+	fmt.Printf(">>> parseError()\n\t>>> %v\n", err)
+	if us3Err, ok := err.(*ufsdk.Error); ok && us3Err.StatusCode == http.StatusNotFound && (us3Err.ErrMsg == "file not exist" || us3Err.RetCode == 0) {
+		return storagedriver.PathNotFoundError{Path: path}
+	}
+	return err
 }
 
 // ============================= writer ==================================
 
+var ( // 暂存还未上传的 part
+	ReadyPart   []byte
+	PendingPart []byte
+)
+
 type writer struct {
-	// TODO(zengyan) writer struct
+	driver      *driver
+	state       *ufsdk.MultipartState
+	parts       []*ufsdk.Part
+	key         string // 注：key 为完整的绝对路径，即 d.us3Path(path)
+	size        int64
+	readyPart   []byte
+	pendingPart []byte
+	closed      bool
+	committed   bool
+	cancelled   bool
 }
+
+func (d *driver) newWriter(key string, state *ufsdk.MultipartState, parts []*ufsdk.Part) storagedriver.FileWriter {
+	// logrus.Infof(">>> newWriter()")
+	var size int64
+	for _, part := range parts {
+		size += int64(part.Size)
+	}
+	// 此时 size 不等于 Write 返回的值，这会无法通过 c.Assert(writer.Size(), check.Equals, curSize) 这个测试
+	// 因此需要更新 size，让其加上此时还未上传的 part 的 size
+	size += int64(len(ReadyPart))
+	return &writer{
+		driver:      d,
+		key:         key,
+		state:       state,
+		size:        size,
+		parts:       parts,
+		readyPart:   ReadyPart,
+		pendingPart: PendingPart,
+	}
+}
+
+// 仅用于测试使用
+var cnt int = 0
+var num int = 0
 
 // Implement the storagedriver.FileWriter interface
 func (w *writer) Write(p []byte) (int, error) {
-	fmt.Printf(">> Write() is not implemented yet\n")
-	return 0, nil
+	// logrus.Infof(">>> Write()\n\t>>> len(p) = %v\n", len(p))
+	if w.closed {
+		return 0, fmt.Errorf("already closed")
+	} else if w.committed {
+		return 0, fmt.Errorf("already committed")
+	} else if w.cancelled {
+		return 0, fmt.Errorf("already cancelled")
+	}
+
+	// If the last written part is smaller than minChunkSize, we need to make a
+	// new multipart upload :sadface:
+	// 如果我们保证成功上传的分块中，要么是 = 4M，要么是 < 4M（最后一块）
+	// 最后一块当且仅当 Commit 时才会上传！！！
+	// 因此根本不可能走到下面的逻辑里！！！
+	if len(w.parts) > 0 && int((*w.parts[len(w.parts)-1]).Size) < w.state.BlkSize {
+		err := w.driver.Req.FinishMultipartUpload(w.state)
+		if err != nil {
+			w.driver.Req.AbortMultipartUpload(w.state)
+			return 0, err
+		}
+
+		state, err := w.driver.Req.InitiateMultipartUpload(w.key, w.driver.getContentType())
+		if err != nil {
+			return 0, err
+		}
+		w.state = state
+
+		// If the entire written file is smaller than minChunkSize, we need to make
+		// a new part from scratch :double sad face:
+		if w.size < int64(w.state.BlkSize) {
+			contents, err := w.driver.getContent(w.key, 0)
+			if err != nil {
+				return 0, parseError(w.key, w.driver.Req.ParseError())
+			}
+			w.parts = nil
+			w.readyPart = contents
+		} else {
+			// Otherwise we can use the old file as the new first part
+			// TODO(zengyan) UploadPartCopy 还未实现
+			// 注：若将来成功获得了 old part，一定记得在这里要修改 w.state.etag。这就意味着，sdk 需要提供一个方法来修改 state.etag 私有字段！！！
+			return 0, fmt.Errorf("UploadPartCopy has yet to achieve")
+		}
+	}
+
+	var n int
+
+	for len(p) > 0 {
+		// If no parts are ready to write, fill up the first part
+		if neededBytes := int(w.state.BlkSize) - len(w.readyPart); neededBytes > 0 {
+			if len(p) >= neededBytes {
+				w.readyPart = append(w.readyPart, p[:neededBytes]...)
+				n += neededBytes
+				num += neededBytes
+				p = p[neededBytes:]
+			} else { // 最后一块不足 BlkSize
+				w.readyPart = append(w.readyPart, p...)
+				n += len(p)
+				num += len(p)
+				p = nil
+			}
+		}
+
+		if neededBytes := int(w.state.BlkSize) - len(w.pendingPart); neededBytes > 0 {
+			if len(p) >= neededBytes {
+				w.pendingPart = append(w.pendingPart, p[:neededBytes]...)
+				n += neededBytes
+				num += neededBytes
+				p = p[neededBytes:]
+				// logrus.Infof(">>> Write()\n\t>>> ready to flush, len(w.readyPart) = %v, len(w.pendingPart) = %v\n", len(w.readyPart), len(w.pendingPart))
+				err := w.flushPart()
+				if err != nil {
+					w.size += int64(n)
+					return n, err
+				}
+			} else { // 最后一块不足 BlkSize
+				w.pendingPart = append(w.pendingPart, p...)
+				n += len(p)
+				num += len(p)
+				p = nil
+			}
+		}
+	}
+
+	w.size += int64(n)
+
+	// logrus.Infof(">>> Write()\n\t>>> len(w.readyPart) = %v\n", len(w.readyPart))
+
+	return n, nil
 }
 
 func (w *writer) Close() error {
-	fmt.Printf(">> Close() is not implemented yet\n")
+	logrus.Infof(">>> Close()")
+	if w.closed {
+		return fmt.Errorf("already closed")
+	}
+	w.closed = true
+	err := w.flushPart()
+	if err != nil {
+		return err
+	}
+	// 将还未上传成功的数据保存到内存中
+	ReadyPart = w.readyPart
+	PendingPart = w.pendingPart
 	return nil
 }
 
 func (w *writer) Size() int64 {
-	fmt.Printf(">> Size() is not implemented yet\n")
-	return 0
+	return w.size
 }
 
 func (w *writer) Cancel() error {
-	fmt.Printf(">> Cancel() is not implemented yet\n")
-	return nil
+	if w.closed {
+		return fmt.Errorf("already closed")
+	} else if w.committed {
+		return fmt.Errorf("already committed")
+	}
+	w.cancelled = true
+	return w.driver.Req.AbortMultipartUpload(w.state) // 删除所有分块
 }
 
 func (w *writer) Commit() error {
-	fmt.Printf(">> Commit() is not implemented yet\n")
+	logrus.Infof(">>> Commit()")
+	if w.closed {
+		return fmt.Errorf("already closed")
+	} else if w.committed {
+		return fmt.Errorf("already committed")
+	} else if w.cancelled {
+		return fmt.Errorf("already cancelled")
+	}
+	// 保证 Commit 时所有内存中的剩余分块都要上传
+	for len(w.readyPart) > 0 {
+		err := w.flushPart()
+		if err != nil {
+			return err
+		}
+	}
+	logrus.Infof(">>> Commit()\n\t>>> len(readyPart) = %v\n", len(w.readyPart))
+	w.committed = true
+	err := w.driver.Req.FinishMultipartUpload(w.state) // 分块合并为完整文件
+	if err != nil {
+		return w.driver.Req.AbortMultipartUpload(w.state) // 删除所有分块
+	}
+	return nil
+}
+
+func (w *writer) flushPart() error {
+	cnt++
+	logrus.Infof(">>> flushPart()\n\t>>> cnt = %v, num = %v\n", cnt, num)
+	// logrus.Infof(">>> flushPart()")
+	if len(w.readyPart) == 0 && len(w.pendingPart) == 0 {
+		// nothing to write
+		return nil
+	}
+
+	// 若解注释掉，则最后一个 chunk 可能会大于 chunkSize。然而我们不允许 chunk 大于 chunkSize
+	// if len(w.pendingPart) < int(w.driver.ChunkSize) {
+	// 	// closing with a small pending part
+	// 	// combine ready and pending to avoid writing a small part
+	// 	w.readyPart = append(w.readyPart, w.pendingPart...)
+	// 	w.pendingPart = nil
+	// }
+
+	logrus.Infof(">>> flushPart()\n\t>>> before upload, len(w.readyPart) = %v, len(w.pendingPart) = %v\n", len(w.readyPart), len(w.pendingPart))
+	part, err := w.driver.Req.UploadPartRetPart(bytes.NewBuffer(w.readyPart), w.state, len(w.parts)) // 将 readyPart 上传
+	if err != nil {
+		return err
+	}
+
+	w.parts = append(w.parts, part)
+	w.readyPart = w.pendingPart
+	w.pendingPart = nil
+	logrus.Infof(">>> flushPart()\n\t>>> after upload, len(w.readyPart) = %v, len(w.pendingPart) = %v\n", len(w.readyPart), len(w.pendingPart))
 	return nil
 }

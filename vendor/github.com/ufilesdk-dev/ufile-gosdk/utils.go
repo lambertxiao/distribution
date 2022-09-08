@@ -19,7 +19,7 @@ const (
 	blkSIZE = 2 << 21
 )
 
-//Config 配置文件序列化所需的全部字段
+// Config 配置文件序列化所需的全部字段
 type Config struct {
 	PublicKey       string `json:"public_key"`
 	PrivateKey      string `json:"private_key"`
@@ -27,10 +27,11 @@ type Config struct {
 	BucketName      string `json:"bucket_name"`
 	FileHost        string `json:"file_host"`
 	VerifyUploadMD5 bool   `json:"verfiy_upload_md5"`
-	Endpoint        string `json:"endpoint"`
+	// TODO(zengyan) 似乎 Endpoint 没用到，猜测是 regin？？？
+	Endpoint string `json:"endpoint"`
 }
 
-//LoadConfig 从配置文件加载一个配置。
+// LoadConfig 从配置文件加载一个配置。
 func LoadConfig(jsonPath string) (*Config, error) {
 	file, err := openFile(jsonPath)
 	if err != nil {
@@ -49,7 +50,7 @@ func LoadConfig(jsonPath string) (*Config, error) {
 	return c, nil
 }
 
-//VerifyHTTPCode 检查 HTTP 的返回值是否为 2XX，如果不是就返回 false。
+// VerifyHTTPCode 检查 HTTP 的返回值是否为 2XX，如果不是就返回 false。
 func VerifyHTTPCode(code int) bool {
 	if code < http.StatusOK || code > http.StatusIMUsed {
 		return false
@@ -57,7 +58,7 @@ func VerifyHTTPCode(code int) bool {
 	return true
 }
 
-//GetFileMimeType 获取文件的 mime type 值，接收文件路径作为参数。如果检测不到，则返回空。
+// GetFileMimeType 获取文件的 mime type 值，接收文件路径作为参数。如果检测不到，则返回空。
 func GetFileMimeType(path string) string {
 	f, err := openFile(path)
 	if err != nil {
@@ -86,7 +87,7 @@ func openFile(path string) (*os.File, error) {
 	return os.Open(path)
 }
 
-//getFileSize get opened file size
+// getFileSize get opened file size
 func getFileSize(f *os.File) int64 {
 	fi, err := f.Stat()
 	if err != nil {
@@ -95,7 +96,7 @@ func getFileSize(f *os.File) int64 {
 	return fi.Size()
 }
 
-//GetFileEtag 获取文件的 etag 值
+// GetFileEtag 获取文件的 etag 值
 func GetFileEtag(path string) string {
 	f, err := openFile(path)
 	if err != nil {
@@ -105,7 +106,7 @@ func GetFileEtag(path string) string {
 	return calculateEtag(f)
 }
 
-//Calculatek 计算文件的 etag 值。
+// Calculatek 计算文件的 etag 值。
 func calculateEtag(f *os.File) string {
 	fsize := getFileSize(f)
 	blkcnt := uint32(fsize / blkSIZE)
