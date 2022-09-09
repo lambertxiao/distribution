@@ -59,12 +59,12 @@ projects=(
 # "riverSuite.TestConcurrentStreamReads" # 128MB * 10 -> 10MB * 10
 )
 
-echo "++++++++ ${#projects[*]} projects ++++++++"
+# echo "++++++++ ${#projects[*]} projects ++++++++"
 
-for pj in ${projects[*]}
-do
-    go test -v -check.f ${pj} 
-done
+# for pj in ${projects[*]}
+# do
+#     go test -v -check.f ${pj} 
+# done
 
 # project="TestConcurrentStreamReads"
 
@@ -72,6 +72,6 @@ done
 # go test -v -timeout 30s -check.f ${project}
 # go test -v -check.list # 列出所有Test
 # go test -v -check.f ${project} # 对指定 project 进行测试，还会测试 xxx_test.go 文件中所有 Testxxx
-# go test -v -check.b ${project} # 对指定 project 进行测试，还会测试 xxx_test.go 文件中所有 Testxxx
+go test -v -check.b # 测试所有 Benchmarkxxx，不还会测试 xxx_test.go 文件中的 Testxxx
 
 # go test -v . # 对所有测试用例进行测试，包括 distribution 中的

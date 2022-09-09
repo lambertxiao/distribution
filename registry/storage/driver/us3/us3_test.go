@@ -1,6 +1,7 @@
 package us3
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -107,24 +108,24 @@ func init() {
 // 	}
 // }
 
-// func TestDelete(t *testing.T) {
-// 	if skipCheck() != "" {
-// 		t.Skip(skipCheck())
-// 	}
+func TestDelete(t *testing.T) {
+	if skipCheck() != "" {
+		t.Skip(skipCheck())
+	}
 
-// 	rootDirectory := os.Getenv("ROOTDIRECTORY")
-// 	// driver, err := us3DriverConstructor(rootDirectory)
-// 	driver, err := us3DriverConstructor("/")
-// 	if err != nil {
-// 		t.Fatalf("unexpected error creating driver with ROOT=%s: %v", rootDirectory, err)
-// 	}
+	rootDirectory := os.Getenv("ROOTDIRECTORY")
+	// driver, err := us3DriverConstructor(rootDirectory)
+	driver, err := us3DriverConstructor("/")
+	if err != nil {
+		t.Fatalf("unexpected error creating driver with ROOT=%s: %v", rootDirectory, err)
+	}
 
-// 	path := "/var"
-// 	err = driver.Delete(context.Background(), path)
-// 	if err != nil {
-// 		t.Fatalf("unexpected error delete content: %v", err)
-// 	}
-// }
+	path := "/var"
+	err = driver.Delete(context.Background(), path)
+	if err != nil {
+		t.Fatalf("unexpected error delete content: %v", err)
+	}
+}
 
 // func TestGetContent(t *testing.T) {
 // 	if skipCheck() != "" {
