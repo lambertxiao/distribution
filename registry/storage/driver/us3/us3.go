@@ -191,20 +191,21 @@ func (d *driver) Name() string {
 // 如：/hello-world，那么该文件的 key 就应该为 /my_images/hello-world
 func (d *driver) GetContent(ctx context.Context, path string) ([]byte, error) {
 	// logrus.Infof(">> GetContent()")
-	fileInfo, err := d.Stat(ctx, path)
-	if fileInfo != nil && err == nil && fileInfo.IsDir() { // d.us3Path(path) 是一个目录，无法 get
-		// return nil, fmt.Errorf("Path is a dir existed, but GetContent() can not support to get dir. Or path is a normal file, but the file isn't existed.\n  path is %s\n  full path is %s\n", path, d.us3Path(path))
-		return nil, storagedriver.PathNotFoundError{Path: path}
-	} else if fileInfo == nil && err != nil { // 根本不存在 d.us3Path(path) 这个文件
-		statErr, ok := err.(storagedriver.PathNotFoundError)
-		if ok {
-			return nil, statErr
-		}
-	}
+	// fileInfo, err := d.Stat(ctx, path)
+	// if fileInfo != nil && err == nil && fileInfo.IsDir() { // d.us3Path(path) 是一个目录，无法 get
+	// 	// return nil, fmt.Errorf("Path is a dir existed, but GetContent() can not support to get dir. Or path is a normal file, but the file isn't existed.\n  path is %s\n  full path is %s\n", path, d.us3Path(path))
+	// 	return nil, storagedriver.PathNotFoundError{Path: path}
+	// } else if fileInfo == nil && err != nil { // 根本不存在 d.us3Path(path) 这个文件
+	// 	statErr, ok := err.(storagedriver.PathNotFoundError)
+	// 	if ok {
+	// 		return nil, statErr
+	// 	}
+	// }
 
 	data, err := d.getContent(d.us3Path(path), 0)
 	if err != nil {
-		return nil, err // 注：这里一定不会返回 storagedriver.PathNotFoundError，因为上面的 Stat() 已经做了判断
+		// return nil, err // 注：这里一定不会返回 storagedriver.PathNotFoundError，因为上面的 Stat() 已经做了判断
+		return nil, parseError(path, d.Req.ParseError())
 	}
 	return data, nil
 }
@@ -226,24 +227,25 @@ func (d *driver) PutContent(ctx context.Context, path string, contents []byte) e
 func (d *driver) Reader(ctx context.Context, path string, offset int64) (io.ReadCloser, error) {
 	// logrus.Infof(">> Reader()")
 	// logrus.Infof(">> Reader()\n\t>>> offset = %d\n", offset)
-	fileInfo, err := d.Stat(ctx, path)
-	if fileInfo != nil && err == nil && fileInfo.IsDir() { // d.us3Path(path) 是一个目录，无法 get
-		// return nil, fmt.Errorf("Path is a dir existed, but GetContent() can not support to get dir. Or path is a normal file, but the file isn't existed.\n  path is %s\n  full path is %s\n", path, d.us3Path(path))
-		return nil, storagedriver.PathNotFoundError{Path: path}
-	} else if fileInfo == nil && err != nil { // 根本不存在 d.us3Path(path) 这个文件
-		statErr, ok := err.(storagedriver.PathNotFoundError)
-		if ok {
-			return nil, statErr
-		}
-	}
+	// fileInfo, err := d.Stat(ctx, path)
+	// if fileInfo != nil && err == nil && fileInfo.IsDir() { // d.us3Path(path) 是一个目录，无法 get
+	// 	// return nil, fmt.Errorf("Path is a dir existed, but GetContent() can not support to get dir. Or path is a normal file, but the file isn't existed.\n  path is %s\n  full path is %s\n", path, d.us3Path(path))
+	// 	return nil, storagedriver.PathNotFoundError{Path: path}
+	// } else if fileInfo == nil && err != nil { // 根本不存在 d.us3Path(path) 这个文件
+	// 	statErr, ok := err.(storagedriver.PathNotFoundError)
+	// 	if ok {
+	// 		return nil, statErr
+	// 	}
+	// }
 
 	respBody, err := d.Req.DownloadFileRetRespBody(d.us3Path(path), offset)
 	if err != nil {
 		err = d.Req.ParseError()
 		if us3Err, ok := err.(*ufsdk.Error); ok && us3Err.StatusCode == http.StatusRequestedRangeNotSatisfiable && (us3Err.ErrMsg == "invalid range" || us3Err.RetCode == 0) {
 			// return ioutil.NopCloser(bytes.NewReader(nil)), storagedriver.InvalidOffsetError{Path: path, Offset: offset}
-			return ioutil.NopCloser(bytes.NewReader(nil)), nil // 如果发生 range 非法，则需要返回一个空的 reader，且不要返回 err！！！
+			return ioutil.NopCloser(bytes.NewReader(nil)), nil // 如果发生 range 非法，则需要返回一个空的 reader，且不要返回 err。这是 distribution 要求的，不然无法通过它的测试用例！！！
 		}
+		// return nil, err // 注：这里一定不会返回 storagedriver.PathNotFoundError，因为上面的 Stat() 已经做了判断
 		return nil, parseError(path, err)
 	}
 	return respBody, nil

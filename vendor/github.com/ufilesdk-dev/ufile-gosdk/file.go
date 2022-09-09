@@ -462,24 +462,21 @@ func (u *UFileRequest) DownloadFileRetRespBody(keyName string, offset int64) (io
 		return nil, err
 	}
 
-	resBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	retReadCloser := ioutil.NopCloser(bytes.NewReader(resBody))
-
 	u.LastResponseStatus = resp.StatusCode
 	u.LastResponseHeader = resp.Header
-	u.LastResponseBody = resBody
-	// u.LastResponseBody = nil // 不要保存到内存！！！超过 128MB 的 body 就会撑爆内存（其实似乎是 []byte 的最大容量为 128MB）
+	u.LastResponseBody = nil // 不要保存到内存！！！超过 128MB 的 body 会撑爆内存（其实似乎是因为 []byte 的最大容量为 128MB）
 	u.lastResponse = resp
 
 	if !VerifyHTTPCode(resp.StatusCode) {
-		// logrus.Infof(">>> DumpResponse(true)\n\t>>> %v\n", string(u.DumpResponse(true)))
-		// return nil, u.ParseError()
-		return nil, fmt.Errorf("Remote response code is %d - %s not 2xx call DumpResponse(true) show details",
+		// 如果 req 出错，此时可以将 resp.Body 保存到内存里，因为 resp.Body 里就只有 RetCode ErrMsg 等信息
+		resBody, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+		u.LastResponseBody = resBody
+		retReadCloser := ioutil.NopCloser(bytes.NewReader(resBody))
+		return retReadCloser, fmt.Errorf("Remote response code is %d - %s not 2xx call DumpResponse(true) show details",
 			resp.StatusCode, http.StatusText(resp.StatusCode))
 	}
 	size := u.LastResponseHeader.Get("Content-Length")
@@ -487,8 +484,7 @@ func (u *UFileRequest) DownloadFileRetRespBody(keyName string, offset int64) (io
 	if err != nil || fileSize < 0 {
 		return nil, fmt.Errorf("Parse content-lengt returned error")
 	}
-	// return resp.Body, nil
-	return retReadCloser, nil
+	return resp.Body, nil
 }
 
 // DownloadFileWithIopString 支持下载iop，直接指定iop命令字符串

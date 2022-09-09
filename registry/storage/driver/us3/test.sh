@@ -48,15 +48,15 @@ projects=(
 "riverSuite.TestWriteRead2"
 "riverSuite.TestWriteRead3"
 "riverSuite.TestWriteRead4"
-"riverSuite.TestWriteReadLargeStreams" # 5G -> 500MB
+# "riverSuite.TestWriteReadLargeStreams" # 5G -> 500MB
 "riverSuite.TestWriteReadNonUTF8"
 "riverSuite.TestWriteReadStreams1"
 "riverSuite.TestWriteReadStreams2"
 "riverSuite.TestWriteReadStreams3"
 "riverSuite.TestWriteReadStreams4"
 "riverSuite.TestWriteReadStreamsNonUTF8"
-"riverSuite.TestConcurrentFileStreams" # 32MB * 32 -> 5MB * 5
-"riverSuite.TestConcurrentStreamReads" # 128MB * 10 -> 10MB * 10
+# "riverSuite.TestConcurrentFileStreams" # 32MB * 32 -> 5MB * 5
+# "riverSuite.TestConcurrentStreamReads" # 128MB * 10 -> 10MB * 10
 )
 
 echo "++++++++ ${#projects[*]} projects ++++++++"
