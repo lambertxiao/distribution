@@ -27,7 +27,7 @@ type Config struct {
 	BucketName      string `json:"bucket_name"`
 	FileHost        string `json:"file_host"`
 	VerifyUploadMD5 bool   `json:"verfiy_upload_md5"`
-	// TODO(zengyan) 似乎 Endpoint 没用到，猜测是 regin？？？
+	// TODO(zengyan) 似乎 Endpoint 没用到，猜测需要一个 regin 字段？？？
 	Endpoint string `json:"endpoint"`
 }
 

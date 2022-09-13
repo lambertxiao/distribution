@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	ufsdk "github.com/ufilesdk-dev/ufile-gosdk"
 
 	storagedriver "github.com/distribution/distribution/v3/registry/storage/driver"
@@ -34,11 +35,11 @@ var BlkSize = 0 // 保存 InitiateMultipartUpload 返回的分片大小
 type DriverParameters struct {
 	PublicKey       string // *************
 	PrivateKey      string // *************
-	Api             string // api.ucloud.cn
+	Api             string // api.ucloud.cn（可选）
 	Bucket          string // test-hzy
 	Regin           string // cn-sh2
 	Endpoint        string // cn-sh2.ufileos.com
-	VerifyUploadMD5 bool   // false
+	VerifyUploadMD5 bool   // false（可选，默认 false）
 	RootDirectory   string // /my_images 或 /
 }
 
@@ -132,31 +133,33 @@ func FromParameters(parameters map[string]interface{}) (*Driver, error) {
 
 func New(params DriverParameters) (*Driver, error) {
 
-	// TODO(NOTE) 这里一定要用 new，而不是 config = &ufsdk.Config{...}。否则 NewFileRequest 会出错，导致 genFileURL 得不到正确的 URL
-	// 猜测是堆变量和临时变量的区别
-	config := new(ufsdk.Config)
-	config.PublicKey = params.PublicKey
-	config.PrivateKey = params.PrivateKey
-	config.BucketHost = params.Api
-	config.BucketName = params.Bucket
-	config.FileHost = params.Endpoint
-	config.VerifyUploadMD5 = params.VerifyUploadMD5
-	config.Endpoint = ""
+	// 以下用 new 和 := 都可以。。。
+
+	// config := new(ufsdk.Config)
+	// config.PublicKey = params.PublicKey
+	// config.PrivateKey = params.PrivateKey
+	// config.BucketHost = params.Api
+	// config.BucketName = params.Bucket
+	// config.FileHost = params.Endpoint
+	// config.VerifyUploadMD5 = params.VerifyUploadMD5
+	// config.Endpoint = ""
 	// logrus.Info(">>> New()")
 	// logrus.Info(">>> config is ", config)
 
-	// config := &ufsdk.Config{
-	// 	PublicKey:       params.PublicKey,
-	// 	PrivateKey:      params.PrivateKey,
-	// 	BucketHost:      params.Api,
-	// 	BucketName:      params.Bucket,
-	// 	FileHost:        params.Endpoint,
-	// 	VerifyUploadMD5: params.VerifyUploadMD5,
-	// 	Endpoint:        "",
-	// }
+	config := &ufsdk.Config{
+		PublicKey:       params.PublicKey,
+		PrivateKey:      params.PrivateKey,
+		BucketHost:      params.Api,
+		BucketName:      params.Bucket,
+		FileHost:        params.Endpoint,
+		VerifyUploadMD5: params.VerifyUploadMD5,
+		Endpoint:        "",
+	}
+	logrus.Info(">>> config is ", config)
 
 	req, err := ufsdk.NewFileRequest(config, nil)
 	if err != nil {
+		logrus.Info(">>> NewFileRequest err is ", err)
 		return nil, err
 	}
 
@@ -274,6 +277,7 @@ func (d *driver) Writer(ctx context.Context, path string, append bool) (storaged
 		// 此时 state 为之前进行过分块上传 key 的那个 state，它也正是要传给 newWriter 的
 		parts, err := d.Req.GetMultiUploadPart(dataSet.UploadId, maxParts, 0) // 获取当前这个 uploadId 已上传的所有 part 信息
 		if err != nil {
+			logrus.Infof("111")
 			return nil, parseError(path, d.Req.ParseError()) // TODO(zengyan) 不确定这个 API 返回的 ErrMsg
 		}
 		// logrus.Infof(">>> Writer()\n\t >>> finish InitiateMultipartUpload()")
@@ -485,7 +489,7 @@ func (d *driver) URLFor(ctx context.Context, path string, options map[string]int
 
 // 遍历 path 路径下所有的文件，并对每个文件调用 f
 // 注：path 应该是一个目录文件，并且 path 不能以 / 结尾
-// 问题在两点：1.Walk的真实需求，2.List的真实需求
+// 问题在两点：1.Walk的真实需求，2.List的真实需求（已明确）
 // TODO(zengyan) Walk() 目前的效果：递归遍历 d.us3Path(path) 这个目录中的所有文件，先遍历目录文件。若遇到空的目录文件，则会直接退出，不会继续遍历
 func (d *driver) Walk(ctx context.Context, path string, f storagedriver.WalkFn) error {
 	// 注：storagedriver.WalkFallback 里会先调用 List

@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/sirupsen/logrus"
 )
 
 // MultipartState 用于保存分片上传的中间状态
@@ -39,12 +41,13 @@ type UploadIdDataSet struct {
 }
 
 type UploadIdResponse struct {
-	NextMarker     string            `json:"NextMarker,omitempty"`
-	UploadIdMarker string            `json:"UploadIdMarker,omitempty"`
-	Prefix         string            `json:"Prefix,omitempty"`
-	Limit          int               `json:"Limit,omitempty"`
-	IsTruncated    bool              `json:"IsTruncated,omitempty"`
-	DataSet        []UploadIdDataSet `json:"DataSet,omitempty"`
+	NextMarker           string            `json:"NextMarker,omitempty"`
+	UploadIdMarker       string            `json:"UploadIdMarker,omitempty"`
+	NextPartNumberMarker string            `json:"NextPartNumberMarker,omitempty"`
+	Prefix               string            `json:"Prefix,omitempty"`
+	Limit                int               `json:"Limit,omitempty"`
+	IsTruncated          bool              `json:"IsTruncated,omitempty"`
+	DataSet              []UploadIdDataSet `json:"DataSet,omitempty"`
 }
 
 type UploadPartResponse struct {
@@ -54,7 +57,8 @@ type UploadPartResponse struct {
 	Status       int    `json:"Status,omitempty"`
 	IsTruncated  bool   `json:"IsTruncated,omitempty"`
 	// NextPartNumberMarker string `json:"NextPartNumberMarker,omitempty"` // TODO(zengyan) 确实解析不了，可能是 api 的问题
-	Parts []Part `json:"Parts,omitempty"`
+	NextPartNumberMarker int    `json:"NextPartNumberMarker,omitempty"`
+	Parts                []Part `json:"Parts,omitempty"`
 }
 
 func (m *MultipartState) GenerateMultipartState(blkSize int, uploadID, mimeType, keyName string, parts []*Part) {
@@ -445,8 +449,8 @@ func (u *UFileRequest) GetMultiUploadPart(uploadId string, maxParts, partNumberM
 	authorization := u.Auth.Authorization("GET", u.BucketName, "", req.Header)
 	req.Header.Add("authorization", authorization)
 
-	// fmt.Printf(">>> GetMultiUploadPart()\n\t")
-	// fmt.Printf(">>> req is %v\n", req)
+	fmt.Printf(">>> GetMultiUploadPart()\n\t")
+	fmt.Printf(">>> req is %v\n", req)
 	err = u.request(req)
 	if err != nil {
 		// err = u.ParseError()
@@ -456,7 +460,8 @@ func (u *UFileRequest) GetMultiUploadPart(uploadId string, maxParts, partNumberM
 	var uploadPartResponse UploadPartResponse
 	err = json.Unmarshal(u.LastResponseBody, &uploadPartResponse)
 	if err != nil {
-		// logrus.Infof("||| 确实解析不了，err = %v\n", err)
+		logrus.Infof("222")
+		logrus.Infof("||| 确实解析不了，err = %v\n", err)
 		return
 	}
 
@@ -466,11 +471,11 @@ func (u *UFileRequest) GetMultiUploadPart(uploadId string, maxParts, partNumberM
 		parts = append(parts, &tmp)
 		// fmt.Println("parts = ", parts)
 	}
-	// fmt.Printf(">>> GetMultiUploadPart()\n\t")
-	// fmt.Printf(">>> parts are %v\n", parts)
-	// for i, part := range parts {
-	// fmt.Printf("\t\t>>> part[%v] = %v\n", i, *part)
-	// }
+	fmt.Printf(">>> GetMultiUploadPart()\n\t")
+	fmt.Printf(">>> parts are %v\n", parts)
+	for i, part := range parts {
+		fmt.Printf("\t\t>>> part[%v] = %v\n", i, *part)
+	}
 	return
 }
 

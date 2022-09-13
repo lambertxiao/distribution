@@ -2,6 +2,7 @@ package us3
 
 import (
 	"context"
+	"io"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 
 	storagedriver "github.com/distribution/distribution/v3/registry/storage/driver"
 	"github.com/distribution/distribution/v3/registry/storage/driver/testsuites"
+	"github.com/sirupsen/logrus"
 	"gopkg.in/check.v1"
 )
 
@@ -294,15 +296,15 @@ func TestDelete(t *testing.T) {
 // 	reader.Close()
 // }
 
-// func generateBigfile(filepath string, fsize int) {
-// 	// 注：fsize 单位为 MB
-// 	f, err := os.OpenFile(filepath, os.O_RDWR|os.O_CREATE, 0755)
-// 	if err != nil {
-// 		panic("unexpected error creating Bigfile: " + err.Error())
-// 	}
-// 	size := (1 << 20) * fsize
-// 	err = f.Truncate(int64(size))
-// }
+func generateBigfile(filepath string, fsize int) {
+	// 注：fsize 单位为 MB
+	f, err := os.OpenFile(filepath, os.O_RDWR|os.O_CREATE, 0755)
+	if err != nil {
+		panic("unexpected error creating Bigfile: " + err.Error())
+	}
+	size := (1 << 20) * fsize
+	err = f.Truncate(int64(size))
+}
 
 // func TestWriter(t *testing.T) {
 // 	if skipCheck() != "" {
@@ -342,77 +344,77 @@ func TestDelete(t *testing.T) {
 // 	t.Logf("writer success")
 // }
 
-// func TestAppendWriter(t *testing.T) {
-// 	if skipCheck() != "" {
-// 		t.Skip(skipCheck())
-// 	}
+func TestAppendWriter(t *testing.T) {
+	if skipCheck() != "" {
+		t.Skip(skipCheck())
+	}
 
-// 	rootDirectory := os.Getenv("ROOTDIRECTORY")
-// 	driver, err := us3DriverConstructor(rootDirectory)
-// 	if err != nil {
-// 		t.Fatalf("unexpected error creating driver with ROOT=%s: %v", rootDirectory, err)
-// 	}
+	rootDirectory := os.Getenv("ROOTDIRECTORY")
+	driver, err := us3DriverConstructor(rootDirectory)
+	if err != nil {
+		t.Fatalf("unexpected error creating driver with ROOT=%s: %v", rootDirectory, err)
+	}
 
-// 	filepath := "./Bigfile"
-// 	generateBigfile(filepath, 10)
-// 	file, err := os.OpenFile(filepath, os.O_RDWR, 0755)
-// 	if err != nil {
-// 		t.Fatalf("unexpected error writer: %v", err)
-// 	}
+	filepath := "./Bigfile"
+	generateBigfile(filepath, 10)
+	file, err := os.OpenFile(filepath, os.O_RDWR, 0755)
+	if err != nil {
+		t.Fatalf("unexpected error writer: %v", err)
+	}
 
-// 	path := "/Bigfile6"
+	path := "/Bigfile6"
 
-// 	writer, err := driver.Writer(context.Background(), path, false)
-// 	if err != nil {
-// 		t.Fatalf("unexpected error writer: %v", err)
-// 	}
-// 	_, err = io.Copy(writer, file)
-// 	if err != nil {
-// 		t.Fatalf("unexpected error writer: %v", err)
-// 	}
-// 	err = writer.Close()
-// 	if err != nil {
-// 		t.Fatalf("unexpected error writer: %v", err)
-// 	}
+	writer, err := driver.Writer(context.Background(), path, false)
+	if err != nil {
+		t.Fatalf("unexpected error writer: %v", err)
+	}
+	_, err = io.Copy(writer, file)
+	if err != nil {
+		t.Fatalf("unexpected error writer: %v", err)
+	}
+	err = writer.Close()
+	if err != nil {
+		t.Fatalf("unexpected error writer: %v", err)
+	}
 
-// 	logrus.Infof(">>> finish 1")
+	logrus.Infof(">>> finish 1")
 
-// 	file.Seek(0, 0)
-// 	writer, err = driver.Writer(context.Background(), path, true)
-// 	if err != nil {
-// 		t.Fatalf("unexpected error writer: %v", err)
-// 	}
-// 	_, err = io.Copy(writer, file)
-// 	if err != nil {
-// 		t.Fatalf("unexpected error writer: %v", err)
-// 	}
-// 	err = writer.Close()
-// 	if err != nil {
-// 		t.Fatalf("unexpected error writer: %v", err)
-// 	}
+	file.Seek(0, 0)
+	writer, err = driver.Writer(context.Background(), path, true)
+	if err != nil {
+		t.Fatalf("unexpected error writer: %v", err)
+	}
+	_, err = io.Copy(writer, file)
+	if err != nil {
+		t.Fatalf("unexpected error writer: %v", err)
+	}
+	err = writer.Close()
+	if err != nil {
+		t.Fatalf("unexpected error writer: %v", err)
+	}
 
-// 	logrus.Infof(">>> finish 2")
+	logrus.Infof(">>> finish 2")
 
-// 	file.Seek(0, 0)
-// 	writer, err = driver.Writer(context.Background(), path, true)
-// 	if err != nil {
-// 		t.Fatalf("unexpected error writer: %v", err)
-// 	}
-// 	_, err = io.Copy(writer, file)
-// 	if err != nil {
-// 		t.Fatalf("unexpected error writer: %v", err)
-// 	}
+	file.Seek(0, 0)
+	writer, err = driver.Writer(context.Background(), path, true)
+	if err != nil {
+		t.Fatalf("unexpected error writer: %v", err)
+	}
+	_, err = io.Copy(writer, file)
+	if err != nil {
+		t.Fatalf("unexpected error writer: %v", err)
+	}
 
-// 	logrus.Infof(">>> finish 3")
+	logrus.Infof(">>> finish 3")
 
-// 	err = writer.Commit()
-// 	if err != nil {
-// 		t.Fatalf("unexpected error writer: %v", err)
-// 	}
-// 	err = writer.Close()
-// 	if err != nil {
-// 		t.Fatalf("unexpected error writer: %v", err)
-// 	}
-// 	t.Logf("writer success")
-// 	logrus.Infof(">>> finish total")
-// }
+	err = writer.Commit()
+	if err != nil {
+		t.Fatalf("unexpected error writer: %v", err)
+	}
+	err = writer.Close()
+	if err != nil {
+		t.Fatalf("unexpected error writer: %v", err)
+	}
+	t.Logf("writer success")
+	logrus.Infof(">>> finish total")
+}
