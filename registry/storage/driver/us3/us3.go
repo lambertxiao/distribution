@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	ufsdk "github.com/ufilesdk-dev/ufile-gosdk"
 
 	storagedriver "github.com/distribution/distribution/v3/registry/storage/driver"
@@ -35,11 +34,11 @@ var BlkSize = 0 // 保存 InitiateMultipartUpload 返回的分片大小
 type DriverParameters struct {
 	PublicKey       string // *************
 	PrivateKey      string // *************
-	Api             string // api.ucloud.cn（可选）
+	Api             string // api.ucloud.cn
 	Bucket          string // test-hzy
 	Regin           string // cn-sh2
 	Endpoint        string // cn-sh2.ufileos.com
-	VerifyUploadMD5 bool   // false（可选，默认 false）
+	VerifyUploadMD5 bool   // false
 	RootDirectory   string // /my_images 或 /
 }
 
@@ -132,9 +131,7 @@ func FromParameters(parameters map[string]interface{}) (*Driver, error) {
 }
 
 func New(params DriverParameters) (*Driver, error) {
-
-	// 以下用 new 和 := 都可以。。。
-
+	// 以下用 new 或 := 都可以
 	// config := new(ufsdk.Config)
 	// config.PublicKey = params.PublicKey
 	// config.PrivateKey = params.PrivateKey
@@ -155,11 +152,9 @@ func New(params DriverParameters) (*Driver, error) {
 		VerifyUploadMD5: params.VerifyUploadMD5,
 		Endpoint:        "",
 	}
-	logrus.Info(">>> config is ", config)
 
 	req, err := ufsdk.NewFileRequest(config, nil)
 	if err != nil {
-		logrus.Info(">>> NewFileRequest err is ", err)
 		return nil, err
 	}
 
@@ -271,13 +266,22 @@ func (d *driver) Writer(ctx context.Context, path string, append bool) (storaged
 		return nil, parseError(path, d.Req.ParseError()) // TODO(zengyan) 不确定这个 API 返回的 ErrMsg
 	}
 	for _, dataSet := range list.DataSet {
+		// TODO(zengyan) 这里用 keyname 来标识一个文件，那么存在一种 bug
+		// 猜测解决方案：
+		//  1. 在 write 中，每次出现分块上传出错的时候，执行 abort
+		//  2. 保证用户使用分块上传时，上传成功或失败后一定要分别调用 Commit 和 Cancel
+		// op1：append 分块上传 key-A，uploadId-A。但因为某些原因上传失败，应该上传 4 块分片，却仅上传了 0 块分片
+		// op2：重新 append 分块上传 key-A，uploadId-B。尝试上传第一部分，并成功上传第一部分的 4 块分片（假设一共有三部分，每部分 4 块分片）
+		// op2：重新 append 分块上传 key-A，uploadId-C。尝试上传第二部分，此时程序会执行到这儿。。。
+		// 	1. list = <key-A, uploadId-A>, <key-A, uploadId-B>
+		//  2. 若选择 <key-A, uploadId-A> 进行 GetMultiUploadPart。则会返回 parts 为空，若在此 parts 之后继续上传，则最终文件不完整，出错。。。
+		//  3. 而正确情况是希望选择 <key-A, uploadId-B> 进行 GetMultiUploadPart，返回 parts 包含 4 块分片信息
 		if key != dataSet.FileName {
 			continue
 		}
 		// 此时 state 为之前进行过分块上传 key 的那个 state，它也正是要传给 newWriter 的
 		parts, err := d.Req.GetMultiUploadPart(dataSet.UploadId, maxParts, 0) // 获取当前这个 uploadId 已上传的所有 part 信息
 		if err != nil {
-			logrus.Infof("111")
 			return nil, parseError(path, d.Req.ParseError()) // TODO(zengyan) 不确定这个 API 返回的 ErrMsg
 		}
 		// logrus.Infof(">>> Writer()\n\t >>> finish InitiateMultipartUpload()")
@@ -489,7 +493,7 @@ func (d *driver) URLFor(ctx context.Context, path string, options map[string]int
 
 // 遍历 path 路径下所有的文件，并对每个文件调用 f
 // 注：path 应该是一个目录文件，并且 path 不能以 / 结尾
-// 问题在两点：1.Walk的真实需求，2.List的真实需求（已明确）
+// 问题在两点：1.Walk的真实需求，2.List的真实需求
 // TODO(zengyan) Walk() 目前的效果：递归遍历 d.us3Path(path) 这个目录中的所有文件，先遍历目录文件。若遇到空的目录文件，则会直接退出，不会继续遍历
 func (d *driver) Walk(ctx context.Context, path string, f storagedriver.WalkFn) error {
 	// 注：storagedriver.WalkFallback 里会先调用 List
@@ -522,7 +526,7 @@ func (d *driver) getContent(key string, offset int64) ([]byte, error) {
 }
 
 func parseError(path string, err error) error {
-	fmt.Printf(">>> parseError()\n\t>>> %v\n", err)
+	// fmt.Printf(">>> parseError()\n\t>>> %v\n", err)
 	if us3Err, ok := err.(*ufsdk.Error); ok && us3Err.StatusCode == http.StatusNotFound && (us3Err.ErrMsg == "file not exist" || us3Err.RetCode == 0) {
 		return storagedriver.PathNotFoundError{Path: path}
 	}
@@ -570,8 +574,8 @@ func (d *driver) newWriter(key string, state *ufsdk.MultipartState, parts []*ufs
 }
 
 // 仅用于测试使用
-var cnt int = 0
-var num int = 0
+// var cnt int = 0
+// var num int = 0
 
 // Implement the storagedriver.FileWriter interface
 func (w *writer) Write(p []byte) (int, error) {
@@ -607,6 +611,7 @@ func (w *writer) Write(p []byte) (int, error) {
 		if w.size < int64(w.state.BlkSize) {
 			contents, err := w.driver.getContent(w.key, 0)
 			if err != nil {
+				w.Cancel()
 				return 0, parseError(w.key, w.driver.Req.ParseError())
 			}
 			w.parts = nil
@@ -627,12 +632,12 @@ func (w *writer) Write(p []byte) (int, error) {
 			if len(p) >= neededBytes {
 				w.readyPart = append(w.readyPart, p[:neededBytes]...)
 				n += neededBytes
-				num += neededBytes
+				// num += neededBytes
 				p = p[neededBytes:]
 			} else { // 最后一块不足 BlkSize
 				w.readyPart = append(w.readyPart, p...)
 				n += len(p)
-				num += len(p)
+				// num += len(p)
 				p = nil
 			}
 		}
@@ -641,18 +646,19 @@ func (w *writer) Write(p []byte) (int, error) {
 			if len(p) >= neededBytes {
 				w.pendingPart = append(w.pendingPart, p[:neededBytes]...)
 				n += neededBytes
-				num += neededBytes
+				// num += neededBytes
 				p = p[neededBytes:]
 				// logrus.Infof(">>> Write()\n\t>>> ready to flush, len(w.readyPart) = %v, len(w.pendingPart) = %v\n", len(w.readyPart), len(w.pendingPart))
 				err := w.flushPart()
 				if err != nil {
 					w.size += int64(n)
+					w.Cancel()
 					return n, err
 				}
 			} else { // 最后一块不足 BlkSize
 				w.pendingPart = append(w.pendingPart, p...)
 				n += len(p)
-				num += len(p)
+				// num += len(p)
 				p = nil
 			}
 		}
@@ -721,7 +727,7 @@ func (w *writer) Commit() error {
 }
 
 func (w *writer) flushPart() error {
-	cnt++
+	// cnt++
 	// logrus.Infof(">>> flushPart()\n\t>>> cnt = %v, num = %v\n", cnt, num)
 	if len(w.readyPart) == 0 && len(w.pendingPart) == 0 {
 		// nothing to write

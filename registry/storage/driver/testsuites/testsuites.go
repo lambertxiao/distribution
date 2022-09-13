@@ -308,7 +308,7 @@ func (suite *DriverSuite) TestWriteReadLargeStreams(c *check.C) {
 
 	checksum := sha256.New()
 	// var fileSize int64 = 5 * 1024 * 1024 * 1024 // 它本来是 5GB，太慢了！！！
-	var fileSize int64 = 500 * 1024 * 1024 // 1GB 会超过 10min，程序会自动超时退出，带宽太慢了。。。
+	var fileSize int64 = 100 * 1024 * 1024 // 1GB 会超过 10min，程序会自动超时退出，带宽太慢了。。。
 
 	contents := newRandReader(fileSize)
 
