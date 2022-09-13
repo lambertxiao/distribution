@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	ufsdk "github.com/ufilesdk-dev/ufile-gosdk"
 
 	storagedriver "github.com/distribution/distribution/v3/registry/storage/driver"
@@ -596,7 +597,8 @@ func (w *writer) Write(p []byte) (int, error) {
 	if len(w.parts) > 0 && int((*w.parts[len(w.parts)-1]).Size) < w.state.BlkSize {
 		err := w.driver.Req.FinishMultipartUpload(w.state)
 		if err != nil {
-			w.driver.Req.AbortMultipartUpload(w.state)
+			// w.driver.Req.AbortMultipartUpload(w.state)
+			w.Cancel()
 			return 0, err
 		}
 
@@ -692,6 +694,7 @@ func (w *writer) Size() int64 {
 }
 
 func (w *writer) Cancel() error {
+	logrus.Infof("||| Cancel()\n")
 	if w.closed {
 		return fmt.Errorf("already closed")
 	} else if w.committed {
@@ -719,9 +722,13 @@ func (w *writer) Commit() error {
 	}
 	// logrus.Infof(">>> Commit()\n\t>>> len(readyPart) = %v\n", len(w.readyPart))
 	w.committed = true
+	logrus.Infof("||| 111\n")
 	err := w.driver.Req.FinishMultipartUpload(w.state) // 分块合并为完整文件
 	if err != nil {
-		return w.driver.Req.AbortMultipartUpload(w.state) // 删除所有分块
+		logrus.Infof("||| 222, err = %v\n", err)
+		err := w.driver.Req.ParseError()
+		w.driver.Req.AbortMultipartUpload(w.state) // 删除所有分块
+		return err
 	}
 	return nil
 }

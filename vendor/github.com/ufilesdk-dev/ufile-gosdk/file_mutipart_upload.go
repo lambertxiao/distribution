@@ -463,16 +463,16 @@ func (u *UFileRequest) GetMultiUploadPart(uploadId string, maxParts, partNumberM
 	}
 
 	for _, part := range uploadPartResponse.Parts {
-		// fmt.Println("part = ", part)
 		tmp := part
 		parts = append(parts, &tmp)
-		// fmt.Println("parts = ", parts)
+		// 注：part 为 Parts 中的元素的副本！！！因此若按以下的方法，将 part 的地址存入 parts，则会出错
+		// parts = append(parts, &part)
 	}
-	// fmt.Printf(">>> GetMultiUploadPart()\n\t")
-	// fmt.Printf(">>> parts are %v\n", parts)
-	// for i, part := range parts {
-	// 	fmt.Printf("\t\t>>> part[%v] = %v\n", i, *part)
-	// }
+	fmt.Printf(">>> GetMultiUploadPart()\n\t")
+	fmt.Printf(">>> parts are %v\n", parts)
+	for i, part := range parts {
+		fmt.Printf("\t\t>>> part[%v] = %v\n", i, *part)
+	}
 	return
 }
 
