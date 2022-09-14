@@ -115,7 +115,7 @@ func FromParameters(parameters map[string]interface{}) (*Driver, error) {
 	}
 	rootDirectory, ok := parameters["RootDirectory"]
 	if !ok {
-		return nil, fmt.Errorf("No RootDirectory parameter provided")
+		rootDirectory = ""
 	}
 
 	param := DriverParameters{
@@ -156,6 +156,12 @@ func New(params DriverParameters) (*Driver, error) {
 
 	req, err := ufsdk.NewFileRequest(config, nil)
 	if err != nil {
+		return nil, err
+	}
+
+	// Validate that the given credentials have at least read permissions in the
+	// given bucket scope.
+	if _, err := req.ListObjects(strings.TrimRight(params.RootDirectory, "/"), "", "", 1); err != nil {
 		return nil, err
 	}
 

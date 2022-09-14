@@ -7,7 +7,7 @@ export BUCKET=lambert-wlcb
 export REGIN=cn-wlcb
 export ENDPOINT=cn-wlcb.ufileos.com
 # export VERIFYUPLOADMD5=false # 可选
-export ROOTDIRECTORY=/my_images
+# export ROOTDIRECTORY=/my_images # 可选
 
 # test_project="TestEmptyRootList"
 # test_project="TestPutContent"
