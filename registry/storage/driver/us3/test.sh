@@ -7,7 +7,7 @@ export BUCKET=lambert-wlcb
 export REGIN=cn-wlcb
 export ENDPOINT=cn-wlcb.ufileos.com
 # export VERIFYUPLOADMD5=false # 可选
-# export ROOTDIRECTORY=/my_images # 可选
+export ROOTDIRECTORY=/test_list_stat # 可选
 
 # test_project="TestEmptyRootList"
 # test_project="TestPutContent"
@@ -63,13 +63,13 @@ projects=(
 
 # for pj in ${projects[*]}
 # do
-    # go test -v -check.f ${pj} 
+#     go test -v -check.f ${pj} 
 # done
 
-project="TestContinueStreamAppendLarge"
+project="TestConcurrentFileStreams"
 
-# go test -timeout 30s -v -run ${test_project}
-# go test -v -timeout 30s -check.f ${project}
+# go test -v -run ${test_project}
+# go test -check.f ${project}
 # go test -v -check.list # 列出所有Test
 go test -v -check.f ${project} # 对指定 project 进行测试，还会测试 xxx_test.go 文件中所有 Testxxx
 # go test -v -check.b # 测试所有 Benchmarkxxx，不还会测试 xxx_test.go 文件中的 Testxxx

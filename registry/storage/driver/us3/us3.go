@@ -312,6 +312,8 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 		return nil, err
 	}
 
+	// logrus.Infof(">>> Stat()\n\tlist is %v\n", list)
+
 	fi := storagedriver.FileInfoFields{
 		Path: path,
 	}
@@ -361,8 +363,9 @@ func (d *driver) List(ctx context.Context, opath string) ([]string, error) {
 	}
 
 	us3Path := d.us3Path(path)
-	// logrus.Infof(">>> prefix is %v", us3Path)
+	// logrus.Infof(">>> List()\n\tprefix is %v", us3Path)
 	listResponse, err := d.Req.ListObjects(us3Path, "", "/", listMax)
+	// logrus.Infof(">>> List()\n\terr is %v", err)
 	if err != nil {
 		return nil, parseError(path, d.Req.ParseError())
 	}
@@ -399,6 +402,7 @@ func (d *driver) List(ctx context.Context, opath string) ([]string, error) {
 	if opath != "/" {
 		if len(files) == 0 && len(directories) == 0 {
 			// Treat empty response as missing directory, since we don't actually have directories in us3.
+			logrus.Infof(">>> 111")
 			return nil, storagedriver.PathNotFoundError{Path: opath}
 		}
 	}
@@ -498,12 +502,13 @@ func (d *driver) URLFor(ctx context.Context, path string, options map[string]int
 	return d.Req.GetPrivateURL(d.us3Path(path), expiresIn), nil
 }
 
-// 遍历 path 路径下所有的文件，并对每个文件调用 f
-// 注：path 应该是一个目录文件，并且 path 不能以 / 结尾
-// 问题在两点：1.Walk的真实需求，2.List的真实需求
-// TODO(zengyan) Walk() 目前的效果：递归遍历 d.us3Path(path) 这个目录中的所有文件，先遍历目录文件。若遇到空的目录文件，则会直接退出，不会继续遍历
+// 按文件名顺序，递归遍历 d.us3Path(path) 这个目录中的所有文件
+// 三种停止遍历的时机：
+//  1. f 中返回 ErrSkipDir 且当前 file 不是目录
+//  2. f 返回其他 err
+//  3. 当前 file 是一个空的目录（会在调用 List 的时候就出错）
 func (d *driver) Walk(ctx context.Context, path string, f storagedriver.WalkFn) error {
-	// 注：storagedriver.WalkFallback 里会先调用 List
+	// 注：storagedriver.WalkFallback 里会调用 List 和 Stat
 	return storagedriver.WalkFallback(ctx, d, path, f)
 }
 
@@ -542,6 +547,7 @@ func parseError(path string, err error) error {
 
 // ============================= writer ==================================
 
+// TODO(zengyan) 线程安全问题
 var ( // 暂存还未上传的 part
 	ReadyPart   []byte
 	PendingPart []byte
@@ -719,6 +725,7 @@ func (w *writer) Commit() error {
 	} else if w.cancelled {
 		return fmt.Errorf("already cancelled")
 	}
+	w.committed = true
 	// 保证 Commit 时所有内存中的剩余分块都要上传
 	for len(w.readyPart) > 0 {
 		err := w.flushPart()
@@ -727,11 +734,8 @@ func (w *writer) Commit() error {
 		}
 	}
 	// logrus.Infof(">>> Commit()\n\t>>> len(readyPart) = %v\n", len(w.readyPart))
-	w.committed = true
-	// logrus.Infof("||| 111\n")
 	err := w.driver.Req.FinishMultipartUpload(w.state) // 分块合并为完整文件
 	if err != nil {
-		// logrus.Infof("||| 222, err = %v\n", err)
 		err := w.driver.Req.ParseError()
 		w.driver.Req.AbortMultipartUpload(w.state) // 删除所有分块
 		return err
@@ -739,9 +743,12 @@ func (w *writer) Commit() error {
 	return nil
 }
 
+// TODO(zengyan) 可能产生的 bug
+// 1. key 相同，但是 part 不同，导致最终文件不同
+
 func (w *writer) flushPart() error {
 	cnt++
-	logrus.Infof(">>> flushPart()\n\t>>> cnt = %v, num = %v\n", cnt, num)
+	// logrus.Infof(">>> flushPart()\n\t>>> cnt = %v, num = %v\n", cnt, num)
 	if len(w.readyPart) == 0 && len(w.pendingPart) == 0 {
 		// nothing to write
 		return nil
@@ -755,6 +762,10 @@ func (w *writer) flushPart() error {
 	// 	w.pendingPart = nil
 	// }
 
+	// 如果未开始 Commit 且当前 readyPart 不足 BlkSize 则不进行 flush，而应等待 readyPart 满之后再 flush
+	if !w.committed && len(w.readyPart) < w.state.BlkSize {
+		return nil
+	}
 	logrus.Infof(">>> flushPart()\n\t>>> before upload, len(w.readyPart) = %v, len(w.pendingPart) = %v\n", len(w.readyPart), len(w.pendingPart))
 	part, err := w.driver.Req.UploadPartRetPart(bytes.NewBuffer(w.readyPart), w.state, len(w.parts)) // 将 readyPart 上传
 	if err != nil {

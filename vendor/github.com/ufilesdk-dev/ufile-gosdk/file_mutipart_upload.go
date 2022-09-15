@@ -418,8 +418,8 @@ func (u *UFileRequest) GetMultiUploadId(prefix, marker, uploadIdMarker string, l
 	}
 
 	err = json.Unmarshal(u.LastResponseBody, &list)
-	fmt.Printf(">>> GetMultiUploadId()\n\t")
-	fmt.Printf(">>> list is %v\n", list)
+	// fmt.Printf(">>> GetMultiUploadId()\n\t")
+	// fmt.Printf(">>> list is %v\n", list)
 	return
 }
 
@@ -468,11 +468,11 @@ func (u *UFileRequest) GetMultiUploadPart(uploadId string, maxParts, partNumberM
 		// 注：part 为 Parts 中的元素的副本！！！因此若按以下的方法，将 part 的地址存入 parts，则会出错
 		// parts = append(parts, &part)
 	}
-	fmt.Printf(">>> GetMultiUploadPart()\n\t")
-	fmt.Printf(">>> parts are %v\n", parts)
-	for i, part := range parts {
-		fmt.Printf("\t\t>>> part[%v] = %v\n", i, *part)
-	}
+	// fmt.Printf(">>> GetMultiUploadPart()\n\t")
+	// fmt.Printf(">>> parts are %v\n", parts)
+	// for i, part := range parts {
+	// 	fmt.Printf("\t\t>>> part[%v] = %v\n", i, *part)
+	// }
 	return
 }
 

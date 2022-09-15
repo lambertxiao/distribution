@@ -204,8 +204,9 @@ func init() {
 // 		t.Fatalf("unexpected error creating driver with ROOT=%s: %v", rootDirectory, err)
 // 	}
 
-// 	path := "/di"
+// 	path := "/dir1"
 // 	fileInfo, err := driver.Stat(context.Background(), path)
+// 	fmt.Printf(">>> file is %v, isDir is %v, size is %v, modtime is %v\n", path, fileInfo.IsDir(), fileInfo.Size(), fileInfo.ModTime())
 // 	if err != nil {
 // 		t.Fatalf("unexpected error stat file: %v", err)
 // 	} else if fileInfo.IsDir() {
@@ -227,8 +228,12 @@ func init() {
 
 // 	// path := "/dir/dir1/" // error
 // 	// path := "/var/folders/2z/vtlyvcts60d82ynnxywknyjc0000gn/T/driver-1489514393"
-// 	path := "/dir/file"
+// 	// path := "/dir/file"
+// 	path := "/dir2"
 // 	files, err := driver.List(context.Background(), path)
+// 	for i, file := range files {
+// 		fmt.Printf("file[%v] = %v\n", i, file)
+// 	}
 // 	if err != nil {
 // 		t.Fatalf("unexpected error list file: %v", err)
 // 	}
@@ -246,13 +251,30 @@ func init() {
 // 		fmt.Printf(">> %v is dir!\n", fileInfo.Path())
 // 		return nil
 // 	}
-// 	fmt.Printf(">> %v is not dir\n", fileInfo.Path())
-// 	fmt.Printf(">> size = %v\n", fileInfo.Size())
-// 	fmt.Printf(">> modtime = %v\n", fileInfo.ModTime())
+// 	fmt.Printf(">> %v is not dir, size = %v, modtime = %v\n", fileInfo.Path(), fileInfo.Size(), fileInfo.ModTime())
 // 	return nil
 // }
 
 // func TestWalk(t *testing.T) {
+// 	/*
+// 		/
+// 			1				/1				false
+// 			2				/2				false
+// 			dir1/			/dir1			true
+// 				3			/dir1/3			false
+// 			dir2/			/dir2			true
+// 			dir3/			/dir3			true
+// 				4			/dir3/4			false
+// 				dir4/		/dir3/dir4		true
+// 			dir5/			/dir5			true
+// 				dir6/		/dir5/dir6		true
+
+// 			停止时机：
+// 			1. f 中返回 ErrSkipDir 且当前 file 不是目录
+// 			2. f 返回其他 err
+// 			3. 当前 file 是一个空的目录（会在调用 List 的时候就出错）
+// 	*/
+
 // 	if skipCheck() != "" {
 // 		t.Skip(skipCheck())
 // 	}
@@ -263,7 +285,7 @@ func init() {
 // 		t.Fatalf("unexpected error creating driver with ROOT=%s: %v", rootDirectory, err)
 // 	}
 
-// 	path := "/dir"
+// 	path := "/"
 // 	err = driver.Walk(context.Background(), path, f)
 // 	if err != nil {
 // 		t.Fatalf("unexpected error walk: %v", err)
@@ -271,27 +293,27 @@ func init() {
 // 	t.Logf("walk success")
 // }
 
-// func TestReader(t *testing.T) {
-// 	if skipCheck() != "" {
-// 		t.Skip(skipCheck())
-// 	}
+// // func TestReader(t *testing.T) {
+// // 	if skipCheck() != "" {
+// // 		t.Skip(skipCheck())
+// // 	}
 
-// 	rootDirectory := os.Getenv("ROOTDIRECTORY")
-// 	driver, err := us3DriverConstructor(rootDirectory)
-// 	if err != nil {
-// 		t.Fatalf("unexpected error creating driver with ROOT=%s: %v", rootDirectory, err)
-// 	}
+// // 	rootDirectory := os.Getenv("ROOTDIRECTORY")
+// // 	driver, err := us3DriverConstructor(rootDirectory)
+// // 	if err != nil {
+// // 		t.Fatalf("unexpected error creating driver with ROOT=%s: %v", rootDirectory, err)
+// // 	}
 
-// 	path := "/11.txt"
-// 	reader, err := driver.Reader(context.Background(), path, 5)
-// 	if err != nil {
-// 		t.Fatalf("unexpected error reader: %v", err)
-// 	}
-// 	content, _ := ioutil.ReadAll(reader)
-// 	t.Logf("reader success, content=%v", content)
-// 	logrus.Infof(">>> content=%v", string(content))
-// 	reader.Close()
-// }
+// // 	path := "/11.txt"
+// // 	reader, err := driver.Reader(context.Background(), path, 5)
+// // 	if err != nil {
+// // 		t.Fatalf("unexpected error reader: %v", err)
+// // 	}
+// // 	content, _ := ioutil.ReadAll(reader)
+// // 	t.Logf("reader success, content=%v", content)
+// // 	logrus.Infof(">>> content=%v", string(content))
+// // 	reader.Close()
+// // }
 
 // func generateBigfile(filepath string, fsize int) {
 // 	// 注：fsize 单位为 MB
@@ -359,7 +381,7 @@ func init() {
 // 		t.Fatalf("unexpected error writer: %v", err)
 // 	}
 
-// 	path := "/Bigfile9"
+// 	path := "/Bigfile11"
 
 // 	writer, err := driver.Writer(context.Background(), path, false)
 // 	if err != nil {

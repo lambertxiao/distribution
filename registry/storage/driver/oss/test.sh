@@ -15,13 +15,12 @@ export ROOTDIRECTORY=/my_images
 # test_project="TestURLFor"
 # test_project="TestMove"
 # test_project="TestStat" 
-# test_project="TestList"
+test_project="TestList"
 # test_project="TestWalk"
 # test_project="TestReader"
 # test_project="TestWriter"
 # test_project="TestAppendWriter"
 
-test_project="TestAppendWriter"
 project=""
 
 

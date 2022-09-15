@@ -2,6 +2,7 @@ package oss
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -226,4 +227,26 @@ func TestAppendWriter(t *testing.T) {
 	}
 	t.Logf("writer success")
 	logrus.Infof(">>> finish total")
+}
+
+func TestList(t *testing.T) {
+	if skipCheck() != "" {
+		t.Skip(skipCheck())
+	}
+
+	rootDirectory := os.Getenv("ROOTDIRECTORY")
+	driver, err := ossDriverConstructor(rootDirectory)
+	if err != nil {
+		t.Fatalf("unexpected error creating driver with ROOT=%s: %v", rootDirectory, err)
+	}
+
+	path := "/dir1"
+	files, err := driver.List(context.Background(), path)
+	for i, file := range files {
+		fmt.Printf("file[%v] = %v\n", i, file)
+	}
+	if err != nil {
+		t.Fatalf("unexpected error list file: %v", err)
+	}
+	t.Logf("list file success, files are %v", files)
 }

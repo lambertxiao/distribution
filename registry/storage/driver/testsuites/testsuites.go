@@ -941,7 +941,7 @@ func (suite *DriverSuite) TestConcurrentStreamReads(c *check.C) {
 func (suite *DriverSuite) TestConcurrentFileStreams(c *check.C) {
 	fmt.Printf("==== [ TestConcurrentFileStreams ] ====\n")
 	// numStreams := 32 // 太慢了。。。
-	numStreams := 5
+	numStreams := 7
 
 	if testing.Short() {
 		numStreams = 8
