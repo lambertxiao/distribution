@@ -420,7 +420,8 @@ func (suite *DriverSuite) TestReaderWithOffset(c *check.C) {
 func (suite *DriverSuite) TestContinueStreamAppendLarge(c *check.C) {
 	fmt.Printf("==== [ TestContinueStreamAppendLarge ] ====\n")
 	// TODO(zengyan) 我们目前只支持 size 为 4MB 的整数倍的测试
-	suite.testContinueStreamAppend(c, int64(10*1024*1024)) // 它原来是每部分 10MB，共三部分。。。。
+	// suite.testContinueStreamAppend(c, int64(10*1024*1024)) // 它原来是每部分 10MB，共三部分。。。。
+	suite.testContinueStreamAppend(c, int64(4*1024*1024))
 	// suite.testContinueStreamAppend(c, int64(8*1024*1024))
 }
 

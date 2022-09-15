@@ -418,8 +418,8 @@ func (u *UFileRequest) GetMultiUploadId(prefix, marker, uploadIdMarker string, l
 	}
 
 	err = json.Unmarshal(u.LastResponseBody, &list)
-	// fmt.Printf(">>> GetMultiUploadId()\n\t")
-	// fmt.Printf(">>> list is %v\n", list)
+	fmt.Printf(">>> GetMultiUploadId()\n\t")
+	fmt.Printf(">>> list is %v\n", list)
 	return
 }
 

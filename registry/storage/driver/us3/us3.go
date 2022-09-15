@@ -581,8 +581,8 @@ func (d *driver) newWriter(key string, state *ufsdk.MultipartState, parts []*ufs
 }
 
 // 仅用于测试使用
-// var cnt int = 0
-// var num int = 0
+var cnt int = 0
+var num int = 0
 
 // Implement the storagedriver.FileWriter interface
 func (w *writer) Write(p []byte) (int, error) {
@@ -640,12 +640,12 @@ func (w *writer) Write(p []byte) (int, error) {
 			if len(p) >= neededBytes {
 				w.readyPart = append(w.readyPart, p[:neededBytes]...)
 				n += neededBytes
-				// num += neededBytes
+				num += neededBytes
 				p = p[neededBytes:]
 			} else { // 最后一块不足 BlkSize
 				w.readyPart = append(w.readyPart, p...)
 				n += len(p)
-				// num += len(p)
+				num += len(p)
 				p = nil
 			}
 		}
@@ -654,9 +654,9 @@ func (w *writer) Write(p []byte) (int, error) {
 			if len(p) >= neededBytes {
 				w.pendingPart = append(w.pendingPart, p[:neededBytes]...)
 				n += neededBytes
-				// num += neededBytes
+				num += neededBytes
 				p = p[neededBytes:]
-				// logrus.Infof(">>> Write()\n\t>>> ready to flush, len(w.readyPart) = %v, len(w.pendingPart) = %v\n", len(w.readyPart), len(w.pendingPart))
+				logrus.Infof(">>> Write()\n\t>>> ready to flush, len(w.readyPart) = %v, len(w.pendingPart) = %v\n", len(w.readyPart), len(w.pendingPart))
 				err := w.flushPart()
 				if err != nil {
 					w.size += int64(n)
@@ -666,7 +666,7 @@ func (w *writer) Write(p []byte) (int, error) {
 			} else { // 最后一块不足 BlkSize
 				w.pendingPart = append(w.pendingPart, p...)
 				n += len(p)
-				// num += len(p)
+				num += len(p)
 				p = nil
 			}
 		}
@@ -680,7 +680,7 @@ func (w *writer) Write(p []byte) (int, error) {
 }
 
 func (w *writer) Close() error {
-	// logrus.Infof(">>> Close()")
+	logrus.Infof(">>> Close()")
 	if w.closed {
 		return fmt.Errorf("already closed")
 	}
@@ -711,7 +711,7 @@ func (w *writer) Cancel() error {
 }
 
 func (w *writer) Commit() error {
-	// logrus.Infof(">>> Commit()")
+	logrus.Infof(">>> Commit()")
 	if w.closed {
 		return fmt.Errorf("already closed")
 	} else if w.committed {
@@ -728,10 +728,10 @@ func (w *writer) Commit() error {
 	}
 	// logrus.Infof(">>> Commit()\n\t>>> len(readyPart) = %v\n", len(w.readyPart))
 	w.committed = true
-	logrus.Infof("||| 111\n")
+	// logrus.Infof("||| 111\n")
 	err := w.driver.Req.FinishMultipartUpload(w.state) // 分块合并为完整文件
 	if err != nil {
-		logrus.Infof("||| 222, err = %v\n", err)
+		// logrus.Infof("||| 222, err = %v\n", err)
 		err := w.driver.Req.ParseError()
 		w.driver.Req.AbortMultipartUpload(w.state) // 删除所有分块
 		return err
@@ -740,8 +740,8 @@ func (w *writer) Commit() error {
 }
 
 func (w *writer) flushPart() error {
-	// cnt++
-	// logrus.Infof(">>> flushPart()\n\t>>> cnt = %v, num = %v\n", cnt, num)
+	cnt++
+	logrus.Infof(">>> flushPart()\n\t>>> cnt = %v, num = %v\n", cnt, num)
 	if len(w.readyPart) == 0 && len(w.pendingPart) == 0 {
 		// nothing to write
 		return nil
@@ -755,7 +755,7 @@ func (w *writer) flushPart() error {
 	// 	w.pendingPart = nil
 	// }
 
-	// logrus.Infof(">>> flushPart()\n\t>>> before upload, len(w.readyPart) = %v, len(w.pendingPart) = %v\n", len(w.readyPart), len(w.pendingPart))
+	logrus.Infof(">>> flushPart()\n\t>>> before upload, len(w.readyPart) = %v, len(w.pendingPart) = %v\n", len(w.readyPart), len(w.pendingPart))
 	part, err := w.driver.Req.UploadPartRetPart(bytes.NewBuffer(w.readyPart), w.state, len(w.parts)) // 将 readyPart 上传
 	if err != nil {
 		return err
@@ -764,6 +764,6 @@ func (w *writer) flushPart() error {
 	w.parts = append(w.parts, part)
 	w.readyPart = w.pendingPart
 	w.pendingPart = nil
-	// logrus.Infof(">>> flushPart()\n\t>>> after upload, len(w.readyPart) = %v, len(w.pendingPart) = %v\n", len(w.readyPart), len(w.pendingPart))
+	logrus.Infof(">>> flushPart()\n\t>>> after upload, len(w.readyPart) = %v, len(w.pendingPart) = %v\n", len(w.readyPart), len(w.pendingPart))
 	return nil
 }

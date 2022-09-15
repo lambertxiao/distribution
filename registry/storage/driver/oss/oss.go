@@ -296,6 +296,11 @@ func (d *driver) Writer(ctx context.Context, path string, append bool) (storaged
 	if err != nil {
 		return nil, parseError(path, err)
 	}
+	fmt.Printf(">>> ListMulti()\n\t")
+	fmt.Printf(">>> multis is %v\n", multis)
+	for i, multi := range multis {
+		fmt.Printf("\t\t>>> multi[%v] = %v\n", i, *multi)
+	}
 	for _, multi := range multis {
 		if key != multi.Key {
 			continue
@@ -303,6 +308,10 @@ func (d *driver) Writer(ctx context.Context, path string, append bool) (storaged
 		parts, err := multi.ListParts()
 		if err != nil {
 			return nil, parseError(path, err)
+		}
+		fmt.Printf(">>> ListParts()\n")
+		for i, part := range parts {
+			fmt.Printf("\t\t>>> part[%v] = %v\n", i, part)
 		}
 		var multiSize int64
 		for _, part := range parts {
@@ -569,6 +578,10 @@ func (d *driver) newWriter(key string, multi *oss.Multi, parts []oss.Part) stora
 	}
 }
 
+// 仅用于测试使用
+var cnt int = 0
+var num int = 0
+
 func (w *writer) Write(p []byte) (int, error) {
 	if w.closed {
 		return 0, fmt.Errorf("already closed")
@@ -596,6 +609,7 @@ func (w *writer) Write(p []byte) (int, error) {
 		// If the entire written file is smaller than minChunkSize, we need to make
 		// a new part from scratch :double sad face:
 		if w.size < minChunkSize {
+			logrus.Infof(">>> Write() -> Get()\n\tlen(w.parts) = %v, w.parts[len(w.parts)-1].Size = %v, w.size = %v\n", len(w.parts), w.parts[len(w.parts)-1].Size, w.size)
 			contents, err := w.driver.Bucket.Get(w.key)
 			if err != nil {
 				return 0, err
@@ -604,6 +618,7 @@ func (w *writer) Write(p []byte) (int, error) {
 			w.readyPart = contents
 		} else {
 			// Otherwise we can use the old file as the new first part
+			logrus.Infof(">>> Write() -> PutPartCopy()\n\tlen(w.parts) = %v, w.parts[len(w.parts)-1].Size = %v, w.size = %v\n", len(w.parts), w.parts[len(w.parts)-1].Size, w.size)
 			_, part, err := multi.PutPartCopy(1, w.driver.getCopyOptions(), w.driver.Bucket.Name+"/"+w.key)
 			if err != nil {
 				return 0, err
@@ -620,10 +635,12 @@ func (w *writer) Write(p []byte) (int, error) {
 			if len(p) >= neededBytes {
 				w.readyPart = append(w.readyPart, p[:neededBytes]...)
 				n += neededBytes
+				num += neededBytes
 				p = p[neededBytes:]
 			} else {
 				w.readyPart = append(w.readyPart, p...)
 				n += len(p)
+				num += len(p)
 				p = nil
 			}
 		}
@@ -632,6 +649,7 @@ func (w *writer) Write(p []byte) (int, error) {
 			if len(p) >= neededBytes {
 				w.pendingPart = append(w.pendingPart, p[:neededBytes]...)
 				n += neededBytes
+				num += neededBytes
 				p = p[neededBytes:]
 				err := w.flushPart()
 				if err != nil {
@@ -641,6 +659,7 @@ func (w *writer) Write(p []byte) (int, error) {
 			} else {
 				w.pendingPart = append(w.pendingPart, p...)
 				n += len(p)
+				num += len(p)
 				p = nil
 			}
 		}
@@ -654,6 +673,7 @@ func (w *writer) Size() int64 {
 }
 
 func (w *writer) Close() error {
+	logrus.Infof(">>> Close()")
 	if w.closed {
 		return fmt.Errorf("already closed")
 	}
@@ -673,6 +693,7 @@ func (w *writer) Cancel() error {
 }
 
 func (w *writer) Commit() error {
+	logrus.Infof(">>> Commit()")
 	if w.closed {
 		return fmt.Errorf("already closed")
 	} else if w.committed {
@@ -696,6 +717,8 @@ func (w *writer) Commit() error {
 // flushPart flushes buffers to write a part to S3.
 // Only called by Write (with both buffers full) and Close/Commit (always)
 func (w *writer) flushPart() error {
+	cnt++
+	logrus.Infof(">>> flushPart()\n\t>>> cnt = %v, num = %v\n", cnt, num)
 	if len(w.readyPart) == 0 && len(w.pendingPart) == 0 {
 		// nothing to write
 		return nil
@@ -707,6 +730,7 @@ func (w *writer) flushPart() error {
 		w.pendingPart = nil
 	}
 
+	logrus.Infof(">>> flushPart()\n\t>>> before upload, len(w.readyPart) = %v, len(w.pendingPart) = %v\n", len(w.readyPart), len(w.pendingPart))
 	part, err := w.multi.PutPart(len(w.parts)+1, bytes.NewReader(w.readyPart))
 	if err != nil {
 		return err
@@ -714,5 +738,6 @@ func (w *writer) flushPart() error {
 	w.parts = append(w.parts, part)
 	w.readyPart = w.pendingPart
 	w.pendingPart = nil
+	logrus.Infof(">>> flushPart()\n\t>>> after upload, len(w.readyPart) = %v, len(w.pendingPart) = %v\n", len(w.readyPart), len(w.pendingPart))
 	return nil
 }
