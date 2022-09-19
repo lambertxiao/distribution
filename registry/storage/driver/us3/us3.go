@@ -766,10 +766,10 @@ func (w *writer) Commit() error {
 }
 
 // TODO(zengyan) 可能产生的 bug
-// 1. 数据库中存在多个同一个 key，却有不同的 part，可能导致最终文件不对（oss 也有）
-// 2. 同一个 key，上传完整个文件后，但在调用 finish 时发生 core dump，导致分片完整但是未合并。接着重新启动程序，重新上传同一个 key，此时数据库里有 key 的所有分片信息，可能会走到 UploadPartCopy 的逻辑里
+// 1. 数据库中存在多个相同的 key，但不同的 part，可能导致最终文件出错（oss 也有这个问题）
+// 2. 上传完整个文件后，在调用 finish 时发生 core dump，导致分片完整但是未合并。接着重新启动程序，重新上传同一个 key，此时数据库里有 key 的所有分片信息，可能会走到 UploadPartCopy 的逻辑里
 // 	注：本质就是使已上传的 parts 以 < 4M 的分片结尾，导致下一次上传时走到 UploadPartCopy 的逻辑里
-// 3. 在上传的过程中若意外 core dump，可能会是内存中保存的数据丢失，导致最终文件不对
+// 3. 在上传的过程中若意外 core dump，可能会使内存中保存的数据丢失，导致最终文件出错
 
 func (w *writer) flushPart() error {
 	cnt++
