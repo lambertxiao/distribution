@@ -375,13 +375,13 @@ func init() {
 // 	}
 
 // 	filepath := "./Bigfile"
-// 	generateBigfile(filepath, 10)
+// 	generateBigfile(filepath, 7)
 // 	file, err := os.OpenFile(filepath, os.O_RDWR, 0755)
 // 	if err != nil {
 // 		t.Fatalf("unexpected error writer: %v", err)
 // 	}
 
-// 	path := "/Bigfile11"
+// 	path := "/Bigfile13"
 
 // 	writer, err := driver.Writer(context.Background(), path, false)
 // 	if err != nil {

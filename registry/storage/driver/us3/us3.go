@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -548,10 +549,12 @@ func parseError(path string, err error) error {
 // ============================= writer ==================================
 
 // TODO(zengyan) 线程安全问题
-var ( // 暂存还未上传的 part
+type TmpPart struct { // 暂存还未上传的 part
 	ReadyPart   []byte
 	PendingPart []byte
-)
+}
+
+var TmpPartMap sync.Map // <key, TmpPart>
 
 type writer struct {
 	driver      *driver
@@ -574,15 +577,23 @@ func (d *driver) newWriter(key string, state *ufsdk.MultipartState, parts []*ufs
 	}
 	// 此时 size 不等于 Write 返回的值，这会无法通过 c.Assert(writer.Size(), check.Equals, curSize) 这个测试
 	// 因此需要更新 size，让其加上此时还未上传的 part 的 size
-	size += int64(len(ReadyPart))
+	var rdPart, pdPart []byte
+	if part, ok := TmpPartMap.Load(key); ok {
+		defer TmpPartMap.Delete(key)
+		if tmpPart, ok := part.(TmpPart); ok {
+			rdPart = tmpPart.ReadyPart
+			pdPart = tmpPart.PendingPart
+			size += int64(len(tmpPart.ReadyPart))
+		}
+	}
 	return &writer{
 		driver:      d,
 		key:         key,
 		state:       state,
 		size:        size,
 		parts:       parts,
-		readyPart:   ReadyPart,
-		pendingPart: PendingPart,
+		readyPart:   rdPart,
+		pendingPart: pdPart,
 	}
 }
 
@@ -634,6 +645,7 @@ func (w *writer) Write(p []byte) (int, error) {
 			// Otherwise we can use the old file as the new first part
 			// TODO(zengyan) UploadPartCopy 还未实现
 			// 注：若将来成功获得了 old part，一定记得在这里要修改 w.state.etag。这就意味着，sdk 需要提供一个方法来修改 state.etag 私有字段！！！
+			w.driver.Req.AbortMultipartUpload(w.state) // 以防万一走到了这个分支里，导致一段时间内无法重新上传这个文件。。。
 			return 0, fmt.Errorf("UploadPartCopy has yet to achieve")
 		}
 	}
@@ -662,7 +674,7 @@ func (w *writer) Write(p []byte) (int, error) {
 				n += neededBytes
 				num += neededBytes
 				p = p[neededBytes:]
-				logrus.Infof(">>> Write()\n\t>>> ready to flush, len(w.readyPart) = %v, len(w.pendingPart) = %v\n", len(w.readyPart), len(w.pendingPart))
+				// logrus.Infof(">>> Write()\n\t>>> ready to flush, len(w.readyPart) = %v, len(w.pendingPart) = %v\n", len(w.readyPart), len(w.pendingPart))
 				err := w.flushPart()
 				if err != nil {
 					w.size += int64(n)
@@ -695,9 +707,18 @@ func (w *writer) Close() error {
 	if err != nil {
 		return err
 	}
+	// // 保证 Close 时所有内存中的剩余分块都要上传
+	// for len(w.readyPart) > 0 {
+	// 	err := w.flushPart()
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// }
 	// 将还未上传成功的数据保存到内存中
-	ReadyPart = w.readyPart
-	PendingPart = w.pendingPart
+	TmpPartMap.Store(w.key, TmpPart{
+		ReadyPart:   w.readyPart,
+		PendingPart: w.pendingPart,
+	})
 	return nil
 }
 
@@ -706,7 +727,7 @@ func (w *writer) Size() int64 {
 }
 
 func (w *writer) Cancel() error {
-	logrus.Infof("||| Cancel()\n")
+	// logrus.Infof("||| Cancel()\n")
 	if w.closed {
 		return fmt.Errorf("already closed")
 	} else if w.committed {
@@ -736,6 +757,7 @@ func (w *writer) Commit() error {
 	// logrus.Infof(">>> Commit()\n\t>>> len(readyPart) = %v\n", len(w.readyPart))
 	err := w.driver.Req.FinishMultipartUpload(w.state) // 分块合并为完整文件
 	if err != nil {
+		logrus.Infof(">>> Commit()\n\t Finish err: %v\n", err)
 		err := w.driver.Req.ParseError()
 		w.driver.Req.AbortMultipartUpload(w.state) // 删除所有分块
 		return err
@@ -744,7 +766,10 @@ func (w *writer) Commit() error {
 }
 
 // TODO(zengyan) 可能产生的 bug
-// 1. key 相同，但是 part 不同，导致最终文件不同
+// 1. 数据库中存在多个同一个 key，却有不同的 part，可能导致最终文件不对（oss 也有）
+// 2. 同一个 key，上传完整个文件后，但在调用 finish 时发生 core dump，导致分片完整但是未合并。接着重新启动程序，重新上传同一个 key，此时数据库里有 key 的所有分片信息，可能会走到 UploadPartCopy 的逻辑里
+// 	注：本质就是使已上传的 parts 以 < 4M 的分片结尾，导致下一次上传时走到 UploadPartCopy 的逻辑里
+// 3. 在上传的过程中若意外 core dump，可能会是内存中保存的数据丢失，导致最终文件不对
 
 func (w *writer) flushPart() error {
 	cnt++
@@ -766,7 +791,7 @@ func (w *writer) flushPart() error {
 	if !w.committed && len(w.readyPart) < w.state.BlkSize {
 		return nil
 	}
-	logrus.Infof(">>> flushPart()\n\t>>> before upload, len(w.readyPart) = %v, len(w.pendingPart) = %v\n", len(w.readyPart), len(w.pendingPart))
+	// logrus.Infof(">>> flushPart()\n\t>>> before upload, len(w.readyPart) = %v, len(w.pendingPart) = %v\n", len(w.readyPart), len(w.pendingPart))
 	part, err := w.driver.Req.UploadPartRetPart(bytes.NewBuffer(w.readyPart), w.state, len(w.parts)) // 将 readyPart 上传
 	if err != nil {
 		return err
@@ -775,6 +800,6 @@ func (w *writer) flushPart() error {
 	w.parts = append(w.parts, part)
 	w.readyPart = w.pendingPart
 	w.pendingPart = nil
-	logrus.Infof(">>> flushPart()\n\t>>> after upload, len(w.readyPart) = %v, len(w.pendingPart) = %v\n", len(w.readyPart), len(w.pendingPart))
+	// logrus.Infof(">>> flushPart()\n\t>>> after upload, len(w.readyPart) = %v, len(w.pendingPart) = %v\n", len(w.readyPart), len(w.pendingPart))
 	return nil
 }
