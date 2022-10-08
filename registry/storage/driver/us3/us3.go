@@ -20,16 +20,17 @@ import (
 	"github.com/distribution/distribution/v3/registry/storage/driver/factory"
 )
 
-const driverName = "us3"
+const (
+	driverName = "us3"
+	apiName    = "api.ucloud.cn"
 
-const apiName = "api.ucloud.cn"
+	// listMax is the largest amount of objects you can request from S3 in a list call
+	listMax  = 1000
+	limit    = 100
+	maxParts = 1000
 
-// listMax is the largest amount of objects you can request from S3 in a list call
-const listMax = 1000
-
-const limit = 100
-
-const maxParts = 1000
+	defaultBlkSize = 4 << 20
+)
 
 var BlkSize = 0 // 保存 InitiateMultipartUpload 返回的分片大小
 
@@ -138,7 +139,7 @@ func New(params DriverParameters) (*Driver, error) {
 	// config.PublicKey = params.PublicKey
 	// config.PrivateKey = params.PrivateKey
 	// config.BucketHost = params.Api
-	// config.BucketName = params.Bucket
+	// config.BucketName = para·ms.Bucket
 	// config.FileHost = params.Endpoint
 	// config.VerifyUploadMD5 = params.VerifyUploadMD5
 	// config.Endpoint = ""
@@ -152,7 +153,7 @@ func New(params DriverParameters) (*Driver, error) {
 		BucketName:      params.Bucket,
 		FileHost:        params.Endpoint,
 		VerifyUploadMD5: params.VerifyUploadMD5,
-		Endpoint:        "",
+		Endpoint:        "", // 自定义域名（若不使用，则默认域名 http://<BucketName>.<FileHost>）
 	}
 
 	req, err := ufsdk.NewFileRequest(config, nil)
@@ -222,7 +223,7 @@ func (d *driver) GetContent(ctx context.Context, path string) ([]byte, error) {
 // 如：/hello-world，那么该文件的 key 就应该为 /my_images/hello-world
 func (d *driver) PutContent(ctx context.Context, path string, contents []byte) error {
 	// logrus.Infof(">> PutContent()")
-	if len(contents) >= 4*1024*1024 { // contents >= 4M 采用分片流式上传
+	if len(contents) >= defaultBlkSize { // contents >= 4M 采用分片流式上传
 		return d.Req.IOMutipartAsyncUpload(bytes.NewReader(contents), d.us3Path(path), d.getContentType())
 	} else { // contents < 4M 采用普通流式上传
 		return d.Req.IOPut(bytes.NewReader(contents), d.us3Path(path), d.getContentType())
@@ -370,7 +371,7 @@ func (d *driver) List(ctx context.Context, opath string) ([]string, error) {
 	if err != nil {
 		return nil, parseError(path, d.Req.ParseError())
 	}
-	// logrus.Infof(">>> listResponse is %v", listResponse)
+	logrus.Infof(">>> listResponse is %v", listResponse)
 
 	files := []string{}
 	directories := []string{}
@@ -412,13 +413,29 @@ func (d *driver) List(ctx context.Context, opath string) ([]string, error) {
 }
 
 // 将 sourcePath 对应的文件移动至 destPath 对应的文件
+// 注：sourcePath 和 destPath 为文件的路径
 func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) error {
-	// logrus.Infof(">> Move()")
+	logrus.Infof(">> Move()\n\t")
+	logrus.Infof(">> d.us3Path(destPath) = %v, d.us3Path(sourcePath) = %v\n", d.us3Path(destPath), d.us3Path(sourcePath))
 	// logrus.Infof(">>> d.Bucket is %v", d.Bucket)
 	err := d.Req.Copy(d.us3Path(destPath), d.Bucket, d.us3Path(sourcePath))
 	// logrus.Infof(">>> Copy's return is %v", err)
 	if err != nil {
-		return parseError(sourcePath, d.Req.ParseError()) // TODO(zengyan) 到底是因为 sourcePath 还是 destPath 返回的 404？？？
+		// * 表示不存在，= 表示产生 404
+		// sourcepath		destpath		404
+		// dir	file		dir	 file
+		// *	*			*	 *
+		// *	*			*
+		// *	*
+		// *				*	 *			=
+		// *				*	 			=
+		// *								=
+		// 					*	 *			=
+		// 					*	 			=
+		// 						 			=
+
+		// 当切仅当 sourcePath 不存在时才会返回 404
+		return parseError(sourcePath, d.Req.ParseError())
 	}
 	return d.Delete(ctx, sourcePath)
 }

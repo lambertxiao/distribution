@@ -14,13 +14,13 @@ export ROOTDIRECTORY=/my_images # 可选
 # test_project="TestDelete"
 # test_project="TestGetContent"
 # test_project="TestURLFor"
-# test_project="TestMove"
+test_project="TestMove"
 # test_project="TestStat"
 # test_project="TestList"
 # test_project="TestWalk"
 # test_project="TestReader"
 # test_project="TestWriter"
-test_project="TestAppendWriter"
+# test_project="TestAppendWriter"
 
 projects=(
 "riverSuite.TestContinueStreamAppendLarge"
@@ -59,16 +59,16 @@ projects=(
 # "riverSuite.TestConcurrentStreamReads" # 128MB * 10 -> 10MB * 10
 )
 
-echo "++++++++ ${#projects[*]} projects ++++++++"
+# echo "++++++++ ${#projects[*]} projects ++++++++"
 
-for pj in ${projects[*]}
-do
-    go test -v -check.f ${pj} 
-done
+# for pj in ${projects[*]}
+# do
+#     go test -v -check.f ${pj} 
+# done
 
 project="TestConcurrentFileStreams"
 
-# go test -v -run ${test_project}
+go test -v -run ${test_project}
 # go test -check.f ${project}
 # go test -v -check.list # 列出所有Test
 # go test -v -check.f ${project} # 对指定 project 进行测试，还会测试 xxx_test.go 文件中所有 Testxxx

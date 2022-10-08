@@ -1,6 +1,7 @@
 package us3
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -69,43 +70,43 @@ func init() {
 	}, skipCheck)
 }
 
-// // 以下为自己写的测试用例
-// func TestPutContent(t *testing.T) {
-// 	if skipCheck() != "" {
-// 		t.Skip(skipCheck())
-// 	}
+// 以下为自己写的测试用例
+func TestPutContent(t *testing.T) {
+	if skipCheck() != "" {
+		t.Skip(skipCheck())
+	}
 
-// 	rootDirectory := os.Getenv("ROOTDIRECTORY")
-// 	driver, err := us3DriverConstructor(rootDirectory)
-// 	if err != nil {
-// 		t.Fatalf("unexpected error creating driver with ROOT=%s: %v", rootDirectory, err)
-// 	}
+	rootDirectory := os.Getenv("ROOTDIRECTORY")
+	driver, err := us3DriverConstructor(rootDirectory)
+	if err != nil {
+		t.Fatalf("unexpected error creating driver with ROOT=%s: %v", rootDirectory, err)
+	}
 
-// 	contents := []byte("contents")
-// 	path := "/dir/file"
-// 	err = driver.PutContent(context.Background(), path, contents)
-// 	if err != nil {
-// 		t.Fatalf("unexpected error put content: %v", err)
-// 	}
+	contents := []byte("contents")
+	path := "/dir/movefile1"
+	err = driver.PutContent(context.Background(), path, contents)
+	if err != nil {
+		t.Fatalf("unexpected error put content: %v", err)
+	}
 
-// 	path = "/dir/filesuffix"
-// 	err = driver.PutContent(context.Background(), path, contents)
-// 	if err != nil {
-// 		t.Fatalf("unexpected error put content: %v", err)
-// 	}
+	// path = "/dir/filesuffix"
+	// err = driver.PutContent(context.Background(), path, contents)
+	// if err != nil {
+	// 	t.Fatalf("unexpected error put content: %v", err)
+	// }
 
-// 	path = "/dir/dir/file"
-// 	err = driver.PutContent(context.Background(), path, contents)
-// 	if err != nil {
-// 		t.Fatalf("unexpected error put content: %v", err)
-// 	}
+	// path = "/dir/dir/file"
+	// err = driver.PutContent(context.Background(), path, contents)
+	// if err != nil {
+	// 	t.Fatalf("unexpected error put content: %v", err)
+	// }
 
-// 	path = "/dir/dirsuffix/file"
-// 	err = driver.PutContent(context.Background(), path, contents)
-// 	if err != nil {
-// 		t.Fatalf("unexpected error put content: %v", err)
-// 	}
-// }
+	// path = "/dir/dirsuffix/file"
+	// err = driver.PutContent(context.Background(), path, contents)
+	// if err != nil {
+	// 	t.Fatalf("unexpected error put content: %v", err)
+	// }
+}
 
 // func TestDelete(t *testing.T) {
 // 	if skipCheck() != "" {
@@ -173,25 +174,25 @@ func init() {
 // 	t.Logf("get URL success, URL2=%v", URL2)
 // }
 
-// func TestMove(t *testing.T) {
-// 	if skipCheck() != "" {
-// 		t.Skip(skipCheck())
-// 	}
+func TestMove(t *testing.T) {
+	if skipCheck() != "" {
+		t.Skip(skipCheck())
+	}
 
-// 	rootDirectory := os.Getenv("ROOTDIRECTORY")
-// 	driver, err := us3DriverConstructor(rootDirectory)
-// 	if err != nil {
-// 		t.Fatalf("unexpected error creating driver with ROOT=%s: %v", rootDirectory, err)
-// 	}
+	rootDirectory := os.Getenv("ROOTDIRECTORY")
+	driver, err := us3DriverConstructor(rootDirectory)
+	if err != nil {
+		t.Fatalf("unexpected error creating driver with ROOT=%s: %v", rootDirectory, err)
+	}
 
-// 	sourcePath := "/test1"
-// 	destPath := "/dir/test1"
-// 	err = driver.Move(context.Background(), sourcePath, destPath)
-// 	if err != nil {
-// 		t.Fatalf("unexpected error move file: %v", err)
-// 	}
-// 	t.Logf("move file success, source path is %v, dest path is %v", sourcePath, destPath)
-// }
+	sourcePath := "/DDD/movefile1"
+	destPath := "/dir/movefile1"
+	err = driver.Move(context.Background(), sourcePath, destPath)
+	if err != nil {
+		t.Fatalf("unexpected error move file: %v", err)
+	}
+	t.Logf("move file success, source path is %v, dest path is %v", sourcePath, destPath)
+}
 
 // func TestStat(t *testing.T) {
 // 	if skipCheck() != "" {
@@ -221,7 +222,7 @@ func init() {
 // 	}
 
 // 	rootDirectory := os.Getenv("ROOTDIRECTORY")
-// 	driver, err := us3DriverConstructor(rootDirectory)
+// 	driver, err := us3DriverConstructor("/")
 // 	if err != nil {
 // 		t.Fatalf("unexpected error creating driver with ROOT=%s: %v", rootDirectory, err)
 // 	}
@@ -229,7 +230,7 @@ func init() {
 // 	// path := "/dir/dir1/" // error
 // 	// path := "/var/folders/2z/vtlyvcts60d82ynnxywknyjc0000gn/T/driver-1489514393"
 // 	// path := "/dir/file"
-// 	path := "/dir2"
+// 	path := "/"
 // 	files, err := driver.List(context.Background(), path)
 // 	for i, file := range files {
 // 		fmt.Printf("file[%v] = %v\n", i, file)
@@ -293,27 +294,27 @@ func init() {
 // 	t.Logf("walk success")
 // }
 
-// // func TestReader(t *testing.T) {
-// // 	if skipCheck() != "" {
-// // 		t.Skip(skipCheck())
-// // 	}
+// func TestReader(t *testing.T) {
+// 	if skipCheck() != "" {
+// 		t.Skip(skipCheck())
+// 	}
 
-// // 	rootDirectory := os.Getenv("ROOTDIRECTORY")
-// // 	driver, err := us3DriverConstructor(rootDirectory)
-// // 	if err != nil {
-// // 		t.Fatalf("unexpected error creating driver with ROOT=%s: %v", rootDirectory, err)
-// // 	}
+// 	rootDirectory := os.Getenv("ROOTDIRECTORY")
+// 	driver, err := us3DriverConstructor(rootDirectory)
+// 	if err != nil {
+// 		t.Fatalf("unexpected error creating driver with ROOT=%s: %v", rootDirectory, err)
+// 	}
 
-// // 	path := "/11.txt"
-// // 	reader, err := driver.Reader(context.Background(), path, 5)
-// // 	if err != nil {
-// // 		t.Fatalf("unexpected error reader: %v", err)
-// // 	}
-// // 	content, _ := ioutil.ReadAll(reader)
-// // 	t.Logf("reader success, content=%v", content)
-// // 	logrus.Infof(">>> content=%v", string(content))
-// // 	reader.Close()
-// // }
+// 	path := "/11.txt"
+// 	reader, err := driver.Reader(context.Background(), path, 5)
+// 	if err != nil {
+// 		t.Fatalf("unexpected error reader: %v", err)
+// 	}
+// 	content, _ := ioutil.ReadAll(reader)
+// 	t.Logf("reader success, content=%v", content)
+// 	logrus.Infof(">>> content=%v", string(content))
+// 	reader.Close()
+// }
 
 // func generateBigfile(filepath string, fsize int) {
 // 	// 注：fsize 单位为 MB
